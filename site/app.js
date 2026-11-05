@@ -256,7 +256,8 @@
     const mobile = matchMedia("(max-width: 700px)").matches;
     let spread = mobile ? false : store.get("spread", false);
     let panelTab = store.get("tab", "toc");
-    let wide = store.get("wide", false);
+    // phones have no button for this, so a value saved in landscape (desktop layout) must not hide the panel
+    let wide = !mobile && store.get("wide", false);
     let zoom = !mobile && store.get("zoom", false);     // kept across page turns
     const qs = q ? "?q=" + encodeURIComponent(q) : "";
 
