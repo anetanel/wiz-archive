@@ -316,3 +316,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
   .pager .btn { padding: 10px 14px; }
   #pzoom, #ptocbtn { padding: 10px 11px; }
 }
+
+/* touch-only devices (a phone held sideways is wider than 700px and gets the desktop layout):
+   no keyboard legend */
+@media (hover: none) and (pointer: coarse) {
+  .khelp { display: none; }
+}
