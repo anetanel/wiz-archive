@@ -85,7 +85,8 @@ Static SPA, hash routes: `#/` covers by year, `#/issue/NNN`, `#/read/NNN/P?q=` (
 single/double page, search-hit highlight boxes, TOC/OCR side panel, clickable rows on the
 scanned TOC page, keyboard arrows / `Z` zoom / Esc with a help line on desktop, zoom kept
 across page turns (`localStorage` like spread/panel), swipe on phones — swipe right = next page),
-`#/search?q=`, `#/articles`, `#/random`. Must keep working from `file://` (scripts are
+`#/search?q=`, `#/articles`, `#/random`. Header: GitHub icon → repo; footer: API, source,
+"דיווח על בעיה" → `issues/new` with the current page URL prefilled (`setReport()`). Must keep working from `file://` (scripts are
 loaded as `.js` globals, no fetch of JSON). Mobile layout under `@media (max-width:700px)`.
 On phones the reader's page is sized by `fitPhone()` to fit between the title row (title and
 PDF button share one row) and the fixed bottom page bar.

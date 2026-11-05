@@ -708,6 +708,15 @@
       e.preventDefault(); qInput.focus(); qInput.select();
     }
   });
+  // "דיווח על בעיה" opens a new GitHub issue that already names the page it is about
+  const report = document.getElementById("report");
+  const setReport = () => {
+    if (!report) return;
+    const page = location.protocol.startsWith("http") ? location.href : location.hash || "#/";
+    report.href = report.href.split("?")[0] + "?body=" + encodeURIComponent(`עמוד: ${page}\n\n`);
+  };
+  window.addEventListener("hashchange", setReport);
+  setReport();
   window.addEventListener("hashchange", route);
   route();
   // Warm the search index in the background so the first search is instant.
