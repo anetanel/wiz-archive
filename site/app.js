@@ -256,6 +256,7 @@
             <button class="btn" id="prev" title="עמוד קודם (→)">→</button>
             <span>עמוד <input id="pnum" value="${n}" inputmode="numeric"> / ${ns[ns.length - 1]}</span>
             <button class="btn" id="next" title="עמוד הבא (←)">←</button>
+            ${mobile ? `<button class="btn" id="pzoom" aria-label="הגדלה">🔍</button>` : ""}
           </div>
           <button class="btn" id="tspread">${spread ? "עמוד בודד" : "עמוד כפול"}</button>
           <button class="btn" id="twide" title="הצג/הסתר פאנל">${wide ? "◧ פאנל" : "◨ הרחב"}</button>
@@ -283,7 +284,8 @@
       document.getElementById("twide").onclick = () => { wide = !wide; store.set("wide", wide); render(); };
       const stage = document.getElementById("stage");
       if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") toggleZoom(); };
-      addSwipe(stage);
+      const pz = addPinchZoom(stage);
+      addSwipe(stage, pz);
       fitPhone();
       app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { panelTab = b.dataset.tab; store.set("tab", panelTab); render(); });
       fillPanel(shown);
@@ -335,11 +337,81 @@
       }
     }
 
+    // Phones: zoom the page itself (not the whole site). Pinch to zoom, drag
+    // with one finger to move around, double-tap or 🔍 to zoom in / back out.
+    // The stage is scaled with transform-origin 0 0: screen = base + t + s * point.
+    function addPinchZoom(el) {
+      const MAX = 4, TAP = 2.5;
+      let s = 1, tx = 0, ty = 0;
+      let g = null;              // current gesture
+      let lastTap = 0, lastX = 0, lastY = 0;
+      const btn = document.getElementById("pzoom");
+      const base = () => { const r = el.getBoundingClientRect(); return [r.left - tx, r.top - ty]; };
+      const apply = (anim) => {
+        if (s < 1.02) { s = 1; tx = 0; ty = 0; }
+        const W = el.offsetWidth, H = el.offsetHeight;
+        tx = Math.min(0, Math.max(W - s * W, tx));
+        ty = Math.min(0, Math.max(H - s * H, ty));
+        el.style.transition = anim ? "transform .2s ease-out" : "none";
+        el.style.transform = s === 1 ? "" : `translate(${tx}px, ${ty}px) scale(${s})`;
+        el.classList.toggle("pz", s > 1);
+        if (btn) btn.classList.toggle("on", s > 1);
+      };
+      // zoom to scale ns keeping the screen point (x, y) where it is
+      const zoomAt = (ns, x, y, anim) => {
+        const [bx, by] = base();
+        const cx = (x - bx - tx) / s, cy = (y - by - ty) / s;
+        s = Math.min(MAX, Math.max(1, ns));
+        tx = x - bx - s * cx; ty = y - by - s * cy;
+        apply(anim);
+      };
+      const toggle = (x, y) => s > 1 ? (s = 1, apply(true)) : zoomAt(TAP, x, y, true);
+      if (btn) btn.onclick = () => { const r = el.getBoundingClientRect(); toggle(r.left + r.width / 2, r.top + r.height / 3); };
+      const mid = t => [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2];
+      const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+      el.addEventListener("touchstart", e => {
+        const t = e.touches;
+        if (t.length === 2) g = { pinch: true, d0: dist(t), s0: s, m: mid(t) };
+        else if (t.length === 1) g = { pinch: false, x: t[0].clientX, y: t[0].clientY, tx0: tx, ty0: ty, moved: false };
+      }, { passive: true });
+      el.addEventListener("touchmove", e => {
+        if (!g) return;
+        const t = e.touches;
+        if (g.pinch && t.length === 2) {
+          e.preventDefault();
+          const [mx, my] = mid(t);
+          // keep the content under the fingers: zoom at the old midpoint, then follow the fingers
+          zoomAt(g.s0 * dist(t) / g.d0, g.m[0], g.m[1], false);
+          tx += mx - g.m[0]; ty += my - g.m[1]; g.m = [mx, my]; g.s0 = s; g.d0 = dist(t);
+          apply(false);
+        } else if (!g.pinch && t.length === 1 && s > 1) {
+          e.preventDefault();
+          tx = g.tx0 + t[0].clientX - g.x; ty = g.ty0 + t[0].clientY - g.y;
+          g.moved = true;
+          apply(false);
+        } else if (!g.pinch && t.length === 1 && Math.hypot(t[0].clientX - g.x, t[0].clientY - g.y) > 10) g.moved = true;
+      }, { passive: false });
+      el.addEventListener("touchend", e => {
+        if (!g) return;
+        if (!g.pinch && !g.moved && e.touches.length === 0) {
+          const now = Date.now(), x = g.x, y = g.y;
+          if (now - lastTap < 300 && Math.hypot(x - lastX, y - lastY) < 30) {
+            if (e.cancelable) e.preventDefault();
+            toggle(x, y); lastTap = 0;
+          } else { lastTap = now; lastX = x; lastY = y; }
+        }
+        if (e.touches.length === 0) g = null;
+        else if (e.touches.length === 1) g = { pinch: false, x: e.touches[0].clientX, y: e.touches[0].clientY, tx0: tx, ty0: ty, moved: true };
+      });
+      el.addEventListener("gesturestart", e => e.preventDefault());    // Safari: no whole-site pinch zoom here
+      return { zoomed: () => s > 1 };
+    }
+
     // Swipe to turn pages (touch screens). Hebrew magazine: the next page
     // comes from the left, so swiping to the right goes forward.
-    function addSwipe(el) {
+    function addSwipe(el, pz) {
       let x0 = 0, y0 = 0, t0 = 0, active = false, horiz = null;
-      const zoomed = () => window.visualViewport && window.visualViewport.scale > 1.05;
+      const zoomed = () => pz.zoomed() || (window.visualViewport && window.visualViewport.scale > 1.05);
       el.addEventListener("touchstart", e => {
         active = e.touches.length === 1 && !zoomed();
         if (!active) return;
@@ -348,7 +420,7 @@
       }, { passive: true });
       el.addEventListener("touchmove", e => {
         if (!active) return;
-        if (e.touches.length !== 1 || zoomed()) { active = false; el.style.transform = ""; return; }
+        if (e.touches.length !== 1 || zoomed()) { if (horiz) el.style.transform = ""; active = false; return; }
         const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
         if (horiz === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) horiz = Math.abs(dx) > Math.abs(dy) * 1.3;
         if (horiz) el.style.transform = `translateX(${dx * 0.6}px)`;
@@ -362,10 +434,10 @@
         if (horiz && (Math.abs(dx) > el.clientWidth * 0.25 || (fast && Math.abs(dx) > 50))) {
           el.style.transform = `translateX(${dx > 0 ? "" : "-"}100%)`;
           setTimeout(() => step(dx > 0 ? 1 : -1), 150);
-        } else el.style.transform = "";
+        } else if (horiz) el.style.transform = "";
       };
       el.addEventListener("touchend", end);
-      el.addEventListener("touchcancel", () => { active = false; el.style.transform = ""; });
+      el.addEventListener("touchcancel", () => { if (active && horiz) el.style.transform = ""; active = false; });
     }
 
     function highlight(shown) {

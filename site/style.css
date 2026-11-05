@@ -242,9 +242,13 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: #1d1733; color: #fff;
     box-shadow: 0 -2px 0 var(--yellow);
   }
-  .pager .btn { padding: 10px 22px; font-size: 18px; }
+  .pager .btn { padding: 10px 20px; font-size: 18px; }
+  #pzoom { padding: 10px 14px; }
+  #pzoom.on { background: var(--yellow); border-color: var(--yellow); }
   .pager input { width: 52px; font-size: 16px; }
-  .stage { margin: 0 -12px; }
+  /* page zoom (addPinchZoom): no browser pinch-zoom over the page; when zoomed, all drags move the page */
+  .stage { margin: 0 -12px; touch-action: pan-y; transform-origin: 0 0; }
+  .stage.pz { touch-action: none; }
   .pagebox { box-shadow: none; }
   /* max-height is set by fitPhone() so the whole page shows above the page bar */
   .pagebox img, .stage.spread .pagebox img { max-height: none; width: auto; max-width: 100%; }
