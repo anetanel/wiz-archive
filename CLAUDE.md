@@ -88,7 +88,8 @@ across page turns (`localStorage` like spread/panel), swipe on phones — swipe 
 `#/search?q=`, `#/articles`, `#/random`. Header: GitHub icon → repo; footer: API, source,
 "דיווח על בעיה" → `issues/new` with the current page URL prefilled (`setReport()`). Must keep working from `file://` (scripts are
 loaded as `.js` globals, no fetch of JSON). Mobile layout under `@media (max-width:700px)`.
-On phones the reader's page is sized by `fitPhone()` to fit between the title row (title and
+On phones there is no TOC/OCR side panel (`wide` is forced; ☰ opens the contents instead).
+The reader's page is sized by `fitPhone()` to fit between the title row (title and
 PDF button share one row) and the fixed bottom page bar.
 Phone page zoom is `addPinchZoom()` (pinch 1–4×, one-finger pan, double-tap or 🔍 = 2.5× / back):
 a transform on `#stage` clipped by `#zoomwrap`; browser pinch-zoom is off over the page, and
