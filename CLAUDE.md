@@ -82,7 +82,8 @@ On phones the reader's page is sized by `fitPhone()` to fit between the title ro
 PDF button share one row) and the fixed bottom page bar.
 Phone page zoom is `addPinchZoom()` (pinch 1–4×, one-finger pan, double-tap or 🔍 = 2.5× / back):
 a transform on `#stage` clipped by `#zoomwrap`; browser pinch-zoom is off over the page, and
-swipe page-turns only work at 1×.
+swipe page-turns only work at 1×. ☰ in the phone page bar opens the issue's TOC as a bottom sheet
+(`addTocSheet()`, same list as the side panel via `tocList()`); under 380px the bar drops the word "עמוד".
 
 ## Conventions
 - Shell scripts must run on macOS (bash 3.2, BSD tools) and Linux; OS-specific code goes

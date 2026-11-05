@@ -245,7 +245,19 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
     box-shadow: 0 -2px 0 var(--yellow);
   }
   .pager .btn { padding: 10px 20px; font-size: 18px; }
-  #pzoom { padding: 10px 14px; }
+  .pager > span { white-space: nowrap; }
+  #pzoom, #ptocbtn { padding: 10px 14px; }
+  /* TOC bottom sheet (☰ in the page bar) */
+  .sheet { position: fixed; inset: 0; z-index: 40; }
+  .sheet[hidden] { display: none; }
+  .sheet-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); }
+  .sheet-box { position: absolute; left: 0; right: 0; bottom: 0; max-height: 75vh; display: flex; flex-direction: column;
+    background: var(--card); border-radius: 14px 14px 0 0; box-shadow: 0 -4px 20px rgba(0, 0, 0, .25);
+    padding-bottom: env(safe-area-inset-bottom); }
+  .sheet-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .sheet-h .btn { padding: 4px 12px; }
+  .sheet-body { overflow: auto; overscroll-behavior: contain; padding: 4px 14px 10px; }
+  .sheet-body .ptoc a { padding: 11px 4px; font-size: 15px; }
   #pzoom.on { background: var(--yellow); border-color: var(--yellow); }
   .pager input { width: 52px; font-size: 16px; }
   /* page zoom (addPinchZoom): no browser pinch-zoom over the page; when zoomed, all drags move the page */
@@ -279,4 +291,12 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
   .atable td:nth-child(4) { grid-area: sec; font-size: 12px; }
   .atable td:nth-child(5) { grid-area: title; }
   .afilter input { min-width: 0; }
+}
+
+/* narrow phones (iPhone SE): the page bar keeps to one row */
+@media (max-width: 380px) {
+  .pager { gap: 6px; }
+  .pager .plabel { display: none; }
+  .pager .btn { padding: 10px 14px; }
+  #pzoom, #ptocbtn { padding: 10px 11px; }
 }

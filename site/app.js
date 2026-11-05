@@ -254,9 +254,10 @@
           <div class="title"><a href="#/issue/${iss.id}">גליון ${iss.num}</a> <span class="muted" style="font-weight:500">${dateHtml(iss)}${art ? " · <bdi>" + esc(art.title) + "</bdi>" : ""}</span></div>
           <div class="pager">
             <button class="btn" id="prev" title="עמוד קודם (→)">→</button>
-            <span>עמוד <input id="pnum" value="${n}" inputmode="numeric"> / ${ns[ns.length - 1]}</span>
+            <span><span class="plabel">עמוד </span><input id="pnum" value="${n}" inputmode="numeric"> / ${ns[ns.length - 1]}</span>
             <button class="btn" id="next" title="עמוד הבא (←)">←</button>
             ${mobile ? `<button class="btn" id="pzoom" aria-label="הגדלה">🔍</button>` : ""}
+            ${mobile ? `<button class="btn" id="ptocbtn" aria-label="תוכן העניינים">☰</button>` : ""}
           </div>
           <button class="btn" id="tspread">${spread ? "עמוד בודד" : "עמוד כפול"}</button>
           <button class="btn" id="twide" title="הצג/הסתר פאנל">${wide ? "◧ פאנל" : "◨ הרחב"}</button>
@@ -276,7 +277,13 @@
             </div>
             <div class="body" id="pbody"></div>
           </aside>
-        </div>`;
+        </div>
+        ${mobile ? `<div class="sheet" id="tocsheet" hidden>
+          <div class="sheet-bg"></div>
+          <div class="sheet-box" role="dialog" aria-label="תוכן העניינים">
+            <div class="sheet-h"><b>תוכן העניינים · גליון ${iss.num}</b><button class="btn" id="tocclose" aria-label="סגירה">✕</button></div>
+            <div class="sheet-body">${tocList()}</div>
+          </div></div>` : ""}`;
       document.getElementById("prev").onclick = () => step(-1);
       document.getElementById("next").onclick = () => step(1);
       document.getElementById("pnum").onchange = e => { const v = +e.target.value; if (ns.includes(v)) go(v); };
@@ -285,6 +292,7 @@
       const stage = document.getElementById("stage");
       if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") toggleZoom(); };
       const pz = addPinchZoom(stage);
+      if (mobile) addTocSheet();
       addSwipe(stage, pz);
       fitPhone();
       app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { panelTab = b.dataset.tab; store.set("tab", panelTab); render(); });
@@ -295,13 +303,33 @@
       [Math.max(...shown) + 1, Math.max(...shown) + 2].forEach(m => { if (ns.includes(m)) new Image().src = img(iss.id, m); });
     }
 
+    // The issue's TOC with the current article marked (side panel and phone sheet).
+    function tocList() {
+      const cur = tocFor(iss, n);
+      return (iss.toc && iss.toc.length) ? `<div class="ptoc">` + iss.toc.map(e =>
+        `<a href="#/read/${iss.id}/${e.page}${qs}" class="${e === cur ? "cur" : ""}"><span class="pg">${e.page}</span><span>${e.section ? `<span class="muted">${esc(e.section)}: </span>` : ""}${esc(e.title)}</span></a>`).join("") + `</div>`
+        : `<div class="muted">אין תוכן עניינים</div>`;
+    }
+
+    // Phones: ☰ in the page bar opens the TOC as a bottom sheet.
+    function addTocSheet() {
+      const sheet = document.getElementById("tocsheet");
+      const close = () => { sheet.hidden = true; };
+      document.getElementById("ptocbtn").onclick = () => {
+        sheet.hidden = false;
+        const cur = sheet.querySelector(".cur");
+        if (cur) cur.scrollIntoView({ block: "center" });
+      };
+      document.getElementById("tocclose").onclick = close;
+      sheet.querySelector(".sheet-bg").onclick = close;
+      // an entry for the page already shown would not change the hash
+      sheet.querySelectorAll(".ptoc a").forEach(a => a.addEventListener("click", close));
+    }
+
     function fillPanel(shown) {
       const body = document.getElementById("pbody");
       if (panelTab === "toc") {
-        const cur = tocFor(iss, n);
-        body.innerHTML = (iss.toc && iss.toc.length) ? `<div class="ptoc">` + iss.toc.map(e =>
-          `<a href="#/read/${iss.id}/${e.page}${qs}" class="${e === cur ? "cur" : ""}"><span class="pg">${e.page}</span><span>${e.section ? `<span class="muted">${esc(e.section)}: </span>` : ""}${esc(e.title)}</span></a>`).join("") + `</div>`
-          : `<div class="muted">אין תוכן עניינים</div>`;
+        body.innerHTML = tocList();
       } else {
         body.innerHTML = `<div class="muted">טוען…</div>`;
         loadIText(iss.id).then(t => {
@@ -482,7 +510,11 @@
       if (!location.hash.startsWith("#/read/") || e.target.tagName === "INPUT") return;
       if (e.key === "ArrowLeft") { e.preventDefault(); step(1); }
       else if (e.key === "ArrowRight") { e.preventDefault(); step(-1); }
-      else if (e.key === "Escape") location.hash = `#/issue/${iss.id}`;
+      else if (e.key === "Escape") {
+        const sheet = document.getElementById("tocsheet");
+        if (sheet && !sheet.hidden) sheet.hidden = true;
+        else location.hash = `#/issue/${iss.id}`;
+      }
       // by physical key, so it also works with the Hebrew layout (ז)
       else if (e.code === "KeyZ" && !mobile && !e.ctrlKey && !e.metaKey && !e.altKey) toggleZoom();
     };
