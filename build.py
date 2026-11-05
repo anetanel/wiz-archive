@@ -106,7 +106,7 @@ def raw_sizes(raw_dir):
     return sizes
 
 
-def plan_pages(sizes):
+def plan_pages(sizes, skip=(), missing=()):
     """Map PDF pages to magazine pages.
 
     Scans are: single cover, then two-page spreads (right half = even page,
@@ -114,18 +114,28 @@ def plan_pages(sizes):
     scanner credit page and is skipped. A portrait page in the middle that is
     much taller than the spreads is a centrefold poster scanned sideways: it
     is shown whole and takes up two page numbers (the second one is skipped).
+    `skip`: PDF pages to leave out (e.g. a spread scanned twice); `missing`:
+    printed page numbers that are not in the scan, so numbering jumps over them.
     """
     heights = sorted(h for _, h in sizes)
     median_h = heights[len(heights) // 2]
     pages, n = [], 1
+
+    def free(m):
+        while m in missing:
+            m += 1
+        return m
+
     last = max(i for i, (w, h) in enumerate(sizes) if h >= 0.6 * median_h)
     for idx, (w, h) in enumerate(sizes):
-        if h < 0.6 * median_h:
+        if h < 0.6 * median_h or idx + 1 in skip:
             continue  # credit / insert page that isn't part of the magazine
+        n = free(n)
         if w / h > 1.25:
             pages.append({"n": n, "pdf": idx + 1, "half": "R"})
-            pages.append({"n": n + 1, "pdf": idx + 1, "half": "L"})
-            n += 2
+            n = free(n + 1)
+            pages.append({"n": n, "pdf": idx + 1, "half": "L"})
+            n += 1
         elif 0 < idx < last and h > 1.3 * median_h:
             pages.append({"n": n, "pdf": idx + 1, "half": None, "span": 2})
             n += 2
@@ -135,19 +145,24 @@ def plan_pages(sizes):
     return pages
 
 
-def load_swaps(issue):
-    """Spreads scanned with their halves reversed, from toc/NNN.json:
-    "swap": [22, 24, "30-40"] – each number is the lower (even) page of a
-    spread; a range covers every spread whose lower page lies in it."""
+def load_numbers(issue, field):
+    """A list of numbers and ranges from toc/NNN.json, e.g. [22, 24, "30-40"]."""
     toc = load_toc(issue) or {}
     out = set()
-    for s in toc.get("swap", []):
+    for s in toc.get(field, []):
         if isinstance(s, int):
             out.add(s)
         else:
             a, _, b = str(s).partition("-")
             out.update(range(int(a), int(b or a) + 1))
     return out
+
+
+def load_swaps(issue):
+    """Spreads scanned with their halves reversed, from toc/NNN.json:
+    "swap": [22, 24, "30-40"] – each number is the lower (even) page of a
+    spread; a range covers every spread whose lower page lies in it."""
+    return load_numbers(issue, "swap")
 
 
 def apply_swaps(plan, swaps):
@@ -169,10 +184,39 @@ def apply_swaps(plan, swaps):
     return plan
 
 
+OCR_EXTS = (".txt", ".tsv", ".size", ".toc.tsv", ".toc.size")
+
+
+def page_files(issue, n):
+    return ([os.path.join(WORK, "ocr", issue, "%03d%s" % (n, ext)) for ext in OCR_EXTS] +
+            [os.path.join(SITE, "img", issue, name % n) for name in ("%03d.jpg", "t%03d.jpg")])
+
+
+def renumber_pages(issue, moves, changed):
+    """Pages whose scan got a different page number ({old: new}, e.g. after
+    adding "missing" pages) keep their cached OCR and images under the new
+    number; every other changed page is forgotten and rebuilt."""
+    tmp = os.path.join(WORK, "ocr", issue, ".renumber")
+    os.makedirs(tmp, exist_ok=True)
+    staged = []
+    for old, new in moves.items():
+        for i, (src, dst) in enumerate(zip(page_files(issue, old), page_files(issue, new))):
+            if os.path.exists(src):
+                t = os.path.join(tmp, "%d-%d" % (old, i))
+                os.replace(src, t)
+                staged.append((t, dst))
+    for n in changed:
+        forget_page(issue, n)
+    for t, dst in staged:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.replace(t, dst)
+    os.rmdir(tmp)
+
+
 def forget_page(issue, n):
     """Delete cached OCR and images of a page so it is rebuilt."""
     base = os.path.join(WORK, "ocr", issue, "%03d" % n)
-    for ext in (".txt", ".tsv", ".size", ".toc.tsv", ".toc.size"):
+    for ext in OCR_EXTS:
         if os.path.exists(base + ext):
             os.remove(base + ext)
     for name in ("%03d.jpg" % n, "t%03d.jpg" % n):
@@ -681,16 +725,21 @@ def main():
         if sizes is None:
             raw = extract_raw(pdfs[num], issue)
             sizes = raw_sizes(raw)
-        new = apply_swaps(plan_pages(sizes), swaps)
+        new = apply_swaps(plan_pages(sizes, load_numbers(issue, "skip_scans"),
+                                     load_numbers(issue, "missing")), swaps)
         old = json.load(open(plan_path)) if os.path.exists(plan_path) else []
         key = lambda p: (p["pdf"], p["half"], p.get("span", 1))
         old_by_n = {p["n"]: key(p) for p in old}
         new_by_n = {p["n"]: key(p) for p in new}
         changed = sorted(n for n in set(old_by_n) | set(new_by_n) if old_by_n.get(n) != new_by_n.get(n))
+        # same scan half under a new page number: move its cache instead of redoing it
+        old_by_key = {k: n for n, k in old_by_n.items()}
+        moves = {old_by_key[new_by_n[n]]: n for n in changed
+                 if n in new_by_n and new_by_n[n] in old_by_key and old_by_key[new_by_n[n]] != n}
         if old and changed:
-            log(f"  [{issue}] page layout changed for pages {changed} – redoing them")
-        for n in changed:
-            forget_page(issue, n)
+            redo = [n for n in changed if n in new_by_n and n not in moves.values()]
+            log(f"  [{issue}] page layout changed: {len(moves)} pages renumbered, redoing {redo}")
+        renumber_pages(issue, moves, changed)
         os.makedirs(os.path.dirname(plan_path), exist_ok=True)
         with open(plan_path, "w") as fh:
             json.dump(new, fh)
@@ -743,6 +792,9 @@ def main():
         info = {"num": num, "id": issue,
                 "pdf": os.path.relpath(pdfs[num], SITE),
                 "pages": [[p["n"], p["pdf"]] for p in pages]}
+        gaps = sorted(load_numbers(issue, "missing"))
+        if gaps:
+            info["missing"] = gaps
         d = find_date(texts)
         if d:
             info["year"], info["month"] = d

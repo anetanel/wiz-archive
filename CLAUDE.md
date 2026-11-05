@@ -21,7 +21,12 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
      a much smaller trailing image is a scanner credit page and is skipped; a tall portrait
      page in the middle is a sideways **centrefold poster** that takes two page numbers
      (issue 3: page 20, then 22). `"swap": [22, "30-40"]` in `toc/NNN.json` flips the halves
-     of mis-scanned spreads.
+     of mis-scanned spreads; `"missing": ["19-22"]` lists printed pages absent from the scan
+     (numbering jumps over them – issue 2, 88: the pulled-out centre sheets/poster);
+     `"skip_scans": [5]` drops PDF pages (issue 88: a spread scanned twice). When pages only
+     get new numbers, their cached OCR/images are moved, not redone (`renumber_pages`).
+     The site shows "עמודים … חסרים בסריקה" and TOC entries open the article's first scanned
+     page (`entryPage()`), or are marked "חסר בסריקה" when none of it was scanned.
    - extracts scans to `work/raw` only when something must be (re)built, splits spreads,
      OCRs each page (`tesseract -l heb+eng`, 2nd sparse pass on the TOC page 3),
      caches OCR in `work/ocr`, writes page images to `site/img/NNN/`.
@@ -47,7 +52,7 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
   These are curated data – edit carefully, keep `swap`/`notes`.
 - `tools/tocsrc/b1..b5.txt` + `convert.py` – the plain-text source most toc files were
   generated from (`#NNN`, `@date YYYY-MM[~]`, `@note`, `@swap`, `@keep`,
-  `page|section|title`). Issues 050, 080, 100, 126 exist only as JSON. If you regenerate,
+  `@missing`, `@skip`, `page|section|title`). Issues 050, 080, 100, 126 exist only as JSON. If you regenerate,
   check you don't drop hand edits made directly in JSON.
 - Dates of issues 1–17 are estimates (`date_estimated`); from 18 on they are printed.
 

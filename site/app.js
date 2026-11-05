@@ -26,6 +26,18 @@
   const pdfPage = (iss, n) => { const p = iss.pages.find(p => p[0] === n); return p ? p[1] : 1; };
   const pdfHref = (iss, n) => `${iss.pdf}#page=${pdfPage(iss, n)}`;
   const pageNums = iss => iss.pages.map(p => p[0]);
+  // printed pages that are not in the scan (toc "missing"), e.g. "עמודים 19–22 חסרים בסריקה"
+  const missingText = iss => {
+    const m = iss.missing || [];
+    if (!m.length) return "";
+    const runs = [];
+    for (const x of m) {
+      const r = runs[runs.length - 1];
+      if (r && x === r[1] + 1) r[1] = x; else runs.push([x, x]);
+    }
+    const txt = runs.map(([a, b]) => a === b ? `${a}` : `${a}–${b}`).join(", ");
+    return m.length === 1 ? `עמוד ${txt} חסר בסריקה` : `עמודים ${txt} חסרים בסריקה`;
+  };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("wiz:" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("wiz:" + k, JSON.stringify(v)); } catch (e) { } }
@@ -112,9 +124,22 @@
     return best;
   }
 
+  // The page a TOC entry opens: its first page, or – when that page is
+  // missing from the scan – the first scanned page of the article; null if
+  // none of it was scanned.
+  function entryPage(iss, e) {
+    const ns = pageNums(iss);
+    if (ns.includes(e.page)) return e.page;
+    const later = (iss.toc || []).map(x => x.page).filter(p => p > e.page);
+    const end = e.page_end || (later.length ? Math.min(...later) - 1 : ns[ns.length - 1]);
+    const m = ns.find(m => m > e.page && m <= end);
+    return m === undefined ? null : m;
+  }
+  const GONE = `<span class="gone-l">חסר בסריקה</span>`;
+
   function allArticles() {
     const out = [];
-    for (const iss of ISSUES) for (const e of iss.toc || []) out.push({ iss, ...e });
+    for (const iss of ISSUES) for (const e of iss.toc || []) out.push({ iss, ...e, at: entryPage(iss, e) });
     return out;
   }
 
@@ -176,10 +201,10 @@
     const idx = ISSUES.indexOf(iss), prev = ISSUES[idx - 1], next = ISSUES[idx + 1];
     let toc = "";
     if (iss.toc && iss.toc.length) {
-      toc = `<ul class="toc">` + iss.toc.map(e => `<li><a href="#/read/${iss.id}/${e.page}">
+      toc = `<ul class="toc">` + iss.toc.map(e => { const at = entryPage(iss, e); return `<li><a ${at === null ? `class="gone"` : `href="#/read/${iss.id}/${at}"`}>
         <span class="pg">${e.page}${e.page_end ? "–" + e.page_end : ""}</span>
-        <span><span class="t">${esc(e.title)}</span></span>
-        ${e.section ? `<span class="sec">${esc(e.section)}</span>` : "<span></span>"}</a></li>`).join("") + `</ul>`;
+        <span><span class="t">${esc(e.title)}</span>${at === null ? " " + GONE : ""}</span>
+        ${e.section ? `<span class="sec">${esc(e.section)}</span>` : "<span></span>"}</a></li>`; }).join("") + `</ul>`;
     } else toc = `<div class="note">לא נמצא תוכן עניינים לגליון הזה.</div>`;
     if (iss.toc_source === "auto")
       toc = `<div class="note">תוכן העניינים חולץ אוטומטית מה-OCR ועשוי להכיל שגיאות. אפשר לתקן אותו בקובץ <code>toc/${iss.id}.json</code>.</div>` + toc;
@@ -199,6 +224,7 @@
         <h1>גליון ${iss.num}</h1>
         <div class="muted">${dateHtml(iss)} · ${iss.pages.length} עמודים</div>
         ${iss.notes ? `<div class="note">${esc(iss.notes)}</div>` : ""}
+        ${iss.missing ? `<div class="note">${missingText(iss)}.</div>` : ""}
         <h2>תוכן העניינים</h2>
         ${toc}
         <h2>כל העמודים</h2>
@@ -211,7 +237,8 @@
   function viewRead(iss, n, params) {
     setNav("");
     const ns = pageNums(iss);
-    if (!ns.includes(n)) n = ns[0];
+    // a page that isn't in the scan (missing pages): show the next one that is
+    if (!ns.includes(n)) n = ns.find(m => m > n) ?? ns[ns.length - 1];
     const q = params.get("q") || "";
     const terms = parseQuery(q);
     const mobile = matchMedia("(max-width: 700px)").matches;
@@ -263,6 +290,7 @@
           <button class="btn" id="twide" title="הצג/הסתר פאנל">${wide ? "◧ פאנל" : "◨ הרחב"}</button>
           ${iss.pdf ? `<a class="btn" href="${esc(pdfHref(iss, n))}" target="_blank">PDF</a>` : ""}
           ${q ? `<span class="hits-nav" id="hitinfo"></span>` : ""}
+          ${shown.some(m => (iss.missing || []).some(x => Math.abs(x - m) === 1)) ? `<span class="hits-nav">${missingText(iss)}</span>` : ""}
         </div>
         <div class="reader ${wide ? "wide" : ""}">
           <div id="zoomwrap" class="${zoom ? "zoomed" : ""}"><div class="stage ${spread ? "spread" : ""}" id="stage">
@@ -306,8 +334,7 @@
     // The issue's TOC with the current article marked (side panel and phone sheet).
     function tocList() {
       const cur = tocFor(iss, n);
-      return (iss.toc && iss.toc.length) ? `<div class="ptoc">` + iss.toc.map(e =>
-        `<a href="#/read/${iss.id}/${e.page}${qs}" class="${e === cur ? "cur" : ""}"><span class="pg">${e.page}</span><span>${e.section ? `<span class="muted">${esc(e.section)}: </span>` : ""}${esc(e.title)}</span></a>`).join("") + `</div>`
+      return (iss.toc && iss.toc.length) ? `<div class="ptoc">` + iss.toc.map(e => { const at = entryPage(iss, e); return `<a ${at === null ? "" : `href="#/read/${iss.id}/${at}${qs}"`} class="${e === cur ? "cur" : ""}${at === null ? " gone" : ""}"><span class="pg">${e.page}</span><span>${e.section ? `<span class="muted">${esc(e.section)}: </span>` : ""}${esc(e.title)}${at === null ? " " + GONE : ""}</span></a>`; }).join("") + `</div>`
         : `<div class="muted">אין תוכן עניינים</div>`;
     }
 
@@ -579,8 +606,8 @@
         </div>`;
       if (arts.length) {
         html += `<h2>כתבות מתוכני העניינים</h2><div class="arts">` + arts.slice(0, 60).map(a =>
-          `<a class="art" href="#/read/${a.iss.id}/${a.page}${qs}"><img loading="lazy" src="${thumb(a.iss.id, a.page)}" alt="">
-           <div><div class="t">${markHtml(a.title, terms)}</div><div class="m">${a.section ? "<bdi>" + esc(a.section) + "</bdi> · " : ""}גליון ${a.iss.num} · עמ' ${a.page} · ${esc(dateStr(a.iss))}</div></div></a>`).join("") + `</div>`;
+          `<a class="art${a.at === null ? " gone" : ""}" ${a.at === null ? "" : `href="#/read/${a.iss.id}/${a.at}${qs}"`}>${a.at === null ? "<span></span>" : `<img loading="lazy" src="${thumb(a.iss.id, a.at)}" alt="">`}
+           <div><div class="t">${markHtml(a.title, terms)}</div><div class="m">${a.section ? "<bdi>" + esc(a.section) + "</bdi> · " : ""}גליון ${a.iss.num} · עמ' ${a.page} · ${esc(dateStr(a.iss))}${a.at === null ? " · " + GONE : ""}</div></div></a>`).join("") + `</div>`;
       }
       if (!hits.length) html += `<div class="note">לא נמצאו עמודים. נסו כתיב אחר או פחות מילים.</div>`;
       html += `<div id="groups"></div>`;
@@ -641,7 +668,7 @@
         .sort((a, b) => { const x = val(a, key), y = val(b, key); return (x > y ? 1 : x < y ? -1 : a.iss.num - b.iss.num || a.page - b.page) * dir; });
       document.getElementById("ab").innerHTML = rows.map(a => `<tr>
         <td><a href="#/issue/${a.iss.id}">${a.iss.num}</a></td><td class="muted">${dateHtml(a.iss)}</td><td>${a.page}</td>
-        <td class="muted">${esc(a.section || "")}</td><td><a href="#/read/${a.iss.id}/${a.page}">${f.length ? markHtml(a.title, f) : esc(a.title)}</a></td></tr>`).join("");
+        <td class="muted">${esc(a.section || "")}</td><td>${a.at === null ? `${f.length ? markHtml(a.title, f) : esc(a.title)} ${GONE}` : `<a href="#/read/${a.iss.id}/${a.at}">${f.length ? markHtml(a.title, f) : esc(a.title)}</a>`}</td></tr>`).join("");
     }
     document.getElementById("af").oninput = draw;
     document.getElementById("as").onchange = draw;

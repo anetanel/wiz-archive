@@ -117,5 +117,11 @@
  ],
  "year": 1998,
  "month": 8,
- "date_estimated": false
+ "date_estimated": false,
+ "skip_scans": [
+  5
+ ],
+ "missing": [
+  "27-30"
+ ]
 }

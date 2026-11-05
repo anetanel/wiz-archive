@@ -12,6 +12,8 @@ def parse(path):
             cur.update(year=int(y), month=int(m), date_estimated=est); continue
         if line.startswith("@note "): cur["notes"] = line[6:].strip(); continue
         if line.startswith("@swap "): cur.setdefault("swap", []).extend(line[6:].split()); continue
+        if line.startswith("@missing "): cur.setdefault("missing", []).extend(line[9:].split()); continue
+        if line.startswith("@skip "): cur.setdefault("skip_scans", []).extend(int(x) for x in line[6:].split()); continue
         if line.strip() == "@keep": cur["keep"] = True; continue
         page, sec, title = line.split("|", 2)
         e = {}
