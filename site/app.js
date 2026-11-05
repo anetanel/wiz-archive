@@ -14,6 +14,8 @@
   // Length-preserving normalisation so indexes map back to the original text.
   const norm = s => s.toLowerCase()
     .replace(/[״“”„″«»]/g, '"').replace(/[׳‘’`´′]/g, "'").replace(/[–—־]/g, "-");
+  // "עמוד אחד" for 1, "5 עמודים" otherwise (Hebrew puts "one" after the noun)
+  const nOf = (n, one, many) => n === 1 ? one : `${n.toLocaleString()} ${many}`;
   const pad = n => String(n).padStart(3, "0");
   const img = (id, n) => `img/${id}/${pad(n)}.jpg`;
   const thumb = (id, n) => `img/${id}/t${pad(n)}.jpg`;
@@ -145,7 +147,7 @@
   function viewHome(params) {
     setNav("home");
     document.title = "ארכיון WIZ";
-    if (!ISSUES.length) { app.innerHTML = `<div class="loading">אין עדיין גליונות. הריצו את build.py.</div>`; return; }
+    if (!ISSUES.length) { app.innerHTML = `<div class="loading">אין עדיין גליונות. הריצו את run.sh.</div>`; return; }
     const years = [...new Set(ISSUES.map(i => i.year).filter(Boolean))].sort();
     const sel = params.get("y");
     const shown = sel ? ISSUES.filter(i => String(i.year) === sel) : ISSUES;
@@ -243,7 +245,7 @@
       document.title = `WIZ ${iss.num} · עמוד ${n}`;
       app.innerHTML = `
         <div class="rbar">
-          <div class="title"><a href="#/issue/${iss.id}">גליון ${iss.num}</a> <span class="muted" style="font-weight:500">${dateHtml(iss)}${art ? " · " + esc(art.title) : ""}</span></div>
+          <div class="title"><a href="#/issue/${iss.id}">גליון ${iss.num}</a> <span class="muted" style="font-weight:500">${dateHtml(iss)}${art ? " · <bdi>" + esc(art.title) + "</bdi>" : ""}</span></div>
           <div class="pager">
             <button class="btn" id="prev" title="עמוד קודם (→)">→</button>
             <span>עמוד <input id="pnum" value="${n}" inputmode="numeric"> / ${ns[ns.length - 1]}</span>
@@ -377,7 +379,7 @@
         const shown = pairOf(n);
         const nextHit = hits.find(m => m > Math.max(...shown));
         const prevHit = hits.slice().reverse().find(m => m < Math.min(...shown));
-        el.innerHTML = `"${esc(q)}": ${count} סימונים כאן · ${hits.length} עמודים בגליון ` +
+        el.innerHTML = `"${esc(q)}": ${nOf(count, "סימון אחד", "סימונים")} כאן · ${nOf(hits.length, "עמוד אחד", "עמודים")} בגליון ` +
           (prevHit ? `<a href="#/read/${iss.id}/${prevHit}${qs}">→ קודם</a> ` : "") +
           (nextHit ? `<a href="#/read/${iss.id}/${nextHit}${qs}">הבא ←</a>` : "") +
           ` · <a href="#/search?q=${encodeURIComponent(q)}">לתוצאות</a>`;
@@ -409,8 +411,8 @@
         • כמה מילים: מוצגים רק עמודים שמופיעות בהם <b>כל</b> המילים. למשל <code>סגה מגה דרייב</code><br>
         • ביטוי מדויק במירכאות: <code>"משחקי תפקידים"</code><br>
         • אין צורך בה' הידיעה או באותיות שימוש. החיפוש <code>משחק</code> ימצא גם "המשחקים".<br>
-        • מקש <code>/</code> קופץ לתיבת החיפוש. בדף קריאה, החיצים מדפדפים.<br>
-        • הטקסט זוהה אוטומטית מהסריקות, אז אם מילה לא נמצאת, כדאי לנסות כתיב אחר או שם באנגלית.</div>`;
+        • המקש <code>/</code> מעביר לתיבת החיפוש. בדף קריאה, החיצים מדפדפים.<br>
+        • הטקסט זוהה אוטומטית מהסריקות, ולכן אם מילה לא נמצאה, כדאי לנסות כתיב אחר או שם באנגלית.</div>`;
       return;
     }
     app.innerHTML = `<div class="loading">טוען את האינדקס…</div>`;
@@ -441,16 +443,16 @@
       const qs = "?q=" + encodeURIComponent(q);
       let html = `<h1><span class="muted" style="font-weight:500">חיפוש:</span> ${esc(q)}</h1>
         <div class="sfilters">
-          <span class="muted">${hits.length.toLocaleString()} עמודים ב-${groups.size} גליונות${arts.length ? ` · ${arts.length} כתבות` : ""} (${ms}ms)</span>
+          <span class="muted">${nOf(hits.length, "עמוד אחד", "עמודים")} ${groups.size === 1 ? "בגליון אחד" : `ב-${groups.size} גליונות`}${arts.length ? ` · ${nOf(arts.length, "כתבה אחת", "כתבות")}` : ""} (${ms}ms)</span>
           <span style="margin-inline-start:auto">שנים:</span>
           <select id="f1"><option value="">מ…</option>${years.map(y => opt(y, params.get("from"))).join("")}</select>
           <select id="f2"><option value="">עד…</option>${years.map(y => opt(y, params.get("to"))).join("")}</select>
           <select id="fs"><option value="issue" ${sort === "issue" ? "selected" : ""}>לפי גליון</option><option value="score" ${sort === "score" ? "selected" : ""}>לפי מספר התאמות</option></select>
         </div>`;
       if (arts.length) {
-        html += `<h2>כתבות מתוכן העניינים</h2><div class="arts">` + arts.slice(0, 60).map(a =>
+        html += `<h2>כתבות מתוכני העניינים</h2><div class="arts">` + arts.slice(0, 60).map(a =>
           `<a class="art" href="#/read/${a.iss.id}/${a.page}${qs}"><img loading="lazy" src="${thumb(a.iss.id, a.page)}" alt="">
-           <div><div class="t">${markHtml(a.title, terms)}</div><div class="m">${a.section ? esc(a.section) + " · " : ""}גליון ${a.iss.num} · עמ' ${a.page} · ${esc(dateStr(a.iss))}</div></div></a>`).join("") + `</div>`;
+           <div><div class="t">${markHtml(a.title, terms)}</div><div class="m">${a.section ? "<bdi>" + esc(a.section) + "</bdi> · " : ""}גליון ${a.iss.num} · עמ' ${a.page} · ${esc(dateStr(a.iss))}</div></div></a>`).join("") + `</div>`;
       }
       if (!hits.length) html += `<div class="note">לא נמצאו עמודים. נסו כתיב אחר או פחות מילים.</div>`;
       html += `<div id="groups"></div>`;
@@ -467,13 +469,13 @@
         let h = "";
         for (const [iss, list] of glist.slice(shown, shown + PER)) {
           const sorted = sort === "score" ? list.slice().sort((a, b) => b.score - a.score) : list;
-          h += `<div class="ghead"><a href="#/issue/${iss.id}">גליון ${iss.num}</a><span class="muted">${dateHtml(iss)}</span><span class="c">${list.length} עמודים</span></div>`;
+          h += `<div class="ghead"><a href="#/issue/${iss.id}">גליון ${iss.num}</a><span class="muted">${dateHtml(iss)}</span><span class="c">${nOf(list.length, "עמוד אחד", "עמודים")}</span></div>`;
           h += sorted.slice(0, 6).map(({ r, score }) => {
             const art = tocFor(iss, r.n);
             return `<a class="hit" href="#/read/${iss.id}/${r.n}${qs}"><img loading="lazy" src="${thumb(iss.id, r.n)}" alt="">
-              <div><div class="m"><b>עמוד ${r.n}</b>${art ? " · " + esc(art.title) : ""} · ${score} התאמות</div><div class="s">${snippet(r, terms)}</div></div></a>`;
+              <div><div class="m"><b>עמוד ${r.n}</b>${art ? " · <bdi>" + esc(art.title) + "</bdi>" : ""} · ${nOf(score, "התאמה אחת", "התאמות")}</div><div class="s">${snippet(r, terms)}</div></div></a>`;
           }).join("");
-          if (list.length > 6) h += `<div class="muted" style="padding:4px 10px;font-size:13px">ועוד ${list.length - 6} עמודים בגליון זה: ` +
+          if (list.length > 6) h += `<div class="muted" style="padding:4px 10px;font-size:13px">ועוד ${nOf(list.length - 6, "עמוד אחד", "עמודים")} בגליון זה: ` +
             list.slice(6).map(({ r }) => `<a href="#/read/${iss.id}/${r.n}${qs}">${r.n}</a>`).join(", ") + `</div>`;
         }
         shown += PER;
@@ -486,7 +488,7 @@
         }
       }
       more();
-    }).catch(() => app.innerHTML = `<div class="note">קובץ האינדקס (data/text.js) לא נמצא. הריצו את build.py.</div>`);
+    }).catch(() => app.innerHTML = `<div class="note">קובץ האינדקס (data/text.js) לא נמצא. הריצו את run.sh.</div>`);
   }
 
   // --- articles
@@ -497,7 +499,7 @@
     const secCount = {};
     for (const a of all) if (a.section) secCount[a.section] = (secCount[a.section] || 0) + 1;
     const secs = Object.keys(secCount).sort((a, b) => secCount[b] - secCount[a]);
-    app.innerHTML = `<h1>כל הכתבות</h1><div class="muted" style="margin-bottom:14px">${all.length.toLocaleString()} פריטים מתוכן העניינים של ${ISSUES.length} גליונות</div>
+    app.innerHTML = `<h1>כל הכתבות</h1><div class="muted" style="margin-bottom:14px">${all.length.toLocaleString()} פריטים מתוכני העניינים של ${ISSUES.length} גליונות</div>
       <div class="afilter">
         <input id="af" type="search" placeholder="סינון לפי שם כתבה / משחק…" value="${esc(params.get("f") || "")}">
         <select id="as"><option value="">כל המדורים</option>${secs.map(s => `<option ${s === params.get("s") ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
