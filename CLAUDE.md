@@ -60,6 +60,18 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
   check you don't drop hand edits made directly in JSON.
 - Dates of issues 1–17 are estimates (`date_estimated`); from 18 on they are printed.
 
+## OCR fixes
+
+`tools/ocrfix.py` re-reads every Latin word inside a mostly-Hebrew line (heb+eng OCR often turns
+Hebrew into Latin gibberish: "oy" = עם, "ON" = אם) from the page image with `tesseract -l heb
+--psm 8`, and keeps the Hebrew reading when it is believable (frequent word in the archive, or a
+confident rare one; real English – dictionary or English-only-line words – is protected, and never
+replaced by a shorter Hebrew word). Output `ocrfix/NNN.json` (committed):
+`{"page": [[block, par, line, word, "old", "new"]]}`. `build.py` (`load_fixes`, `tsv_words`)
+applies a fix only while the cached TSV still has the old word at that key; pages with fixes get
+their text rebuilt from the TSV (same layout as tesseract's .txt). Re-run the tool after pages
+are re-OCR'd (~15 min on 12 cores), then `run.sh`.
+
 ## REST API (`functions/api/[[path]].js`, docs page `site/developers.html` → `/developers`)
 
 `/api` (browser → redirect to docs, else JSON index), `/api/issues`, `/api/issues/{n}`,

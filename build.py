@@ -33,6 +33,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(ROOT, "work")
 SITE = os.path.join(ROOT, "site")
 TOC_DIR = os.path.join(ROOT, "toc")
+FIX_DIR = os.path.join(ROOT, "ocrfix")
 
 PAGE_MAX_H = 1500        # height of page images shown in the reader
 PAGE_QUALITY = 78
@@ -43,6 +44,7 @@ HEB_MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "�
               "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
 MONTH_ALIASES = {"מרס": "מרץ", "מארס": "מרץ"}
 
+HEB_CHAR = re.compile("[\u05d0-\u05ea]")
 BIDI_JUNK = re.compile("[‎‏‪-‮⁦-⁩﻿]")
 
 
@@ -379,34 +381,98 @@ def ocr_toc_page(im, base):
         fh.write("%d %d" % im.size)
 
 
-def read_text(issue, n):
-    with open(os.path.join(WORK, "ocr", issue, "%03d.txt" % n), encoding="utf-8") as fh:
-        t = BIDI_JUNK.sub("", fh.read())
-    t = re.sub(r"[ \t]+", " ", t)
-    t = re.sub(r"\n\s*\n+", "\n\n", t)
-    return t.strip()
+def load_fixes(issue):
+    """Corrected OCR words from ocrfix/NNN.json (made by tools/ocrfix.py):
+    {"12": [[block, par, line, word, "old", "new"], ...]} – page -> fixes.
+    A fix applies only while the cached OCR still has the old word there."""
+    path = os.path.join(FIX_DIR, issue + ".json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return {int(n): {tuple(f[:4]): (f[4], f[5]) for f in fixes} for n, fixes in data.items()}
 
 
-def read_words(issue, n, kind=""):
-    """Word boxes (0..1000 coordinates) for highlighting search hits."""
-    base = os.path.join(WORK, "ocr", issue, "%03d" % n) + kind
-    with open(base + ".size") as fh:
-        W, H = map(int, fh.read().split())
-    words, lines = [], {}
-    with open(base + ".tsv", encoding="utf-8") as fh:
+def tsv_words(path, fixes=None):
+    """Word rows of a tesseract TSV: (block, par, line, word, x, y, w, h, conf, text),
+    with fixed words replaced (conf 100)."""
+    rows = []
+    with open(path, encoding="utf-8") as fh:
         next(fh)
         for row in fh:
             c = row.rstrip("\n").split("\t")
             if len(c) < 12 or c[0] != "5":
                 continue
-            txt = BIDI_JUNK.sub("", c[11]).strip()
-            if not txt or float(c[10]) < 20:
-                continue
-            x, y, w, h = map(int, c[6:10])
-            words.append([round(x * 1000 / W), round(y * 1000 / H),
-                          max(1, round(w * 1000 / W)), max(1, round(h * 1000 / H)), txt])
-            # 0..1000 coordinates, words kept in tesseract's (logical) order
-            lines.setdefault((c[2], c[3], c[4]), []).append(words[-1])
+            key = tuple(map(int, c[2:6]))
+            txt, conf = c[11], float(c[10])
+            fix = (fixes or {}).get(key)
+            fixed = bool(fix) and fix[0] == BIDI_JUNK.sub("", txt).strip()
+            if fixed:
+                txt, conf = fix[1], 100.0
+            rows.append([key + tuple(map(int, c[6:10])) + (conf, txt), fixed,
+                         fixed or not HEB_CHAR.search(txt)])
+    if not fixes:
+        return [r[0] for r in rows]
+    # Tesseract stores a run of Latin words in a Hebrew line left to right. Fixed
+    # (now Hebrew) words in such a run must go right to left; plain Latin parts
+    # between them stay as they are.
+    out, i = [], 0
+    while i < len(rows):
+        j = i
+        while j < len(rows) and rows[j][2] and rows[j][0][:3] == rows[i][0][:3]:
+            j += 1
+        if j - i < 2 or not any(r[1] for r in rows[i:j]):
+            out.append(rows[i][0])
+            i += 1
+            continue
+        parts = []
+        for r in rows[i:j]:
+            if r[1] or not parts or parts[-1][0][1]:
+                parts.append([r])
+            else:
+                parts[-1].append(r)
+        for part in sorted(parts, key=lambda p: -p[0][0][4]):
+            out += [r[0] for r in part]
+        i = j
+    return out
+
+
+def read_text(issue, n, fixes=None):
+    base = os.path.join(WORK, "ocr", issue, "%03d" % n)
+    if fixes:
+        # rebuild tesseract's text layout from the TSV: a line per line, blank line between paragraphs
+        out, prev = [], None
+        for w in tsv_words(base + ".tsv", fixes):
+            if w[:3] == prev:
+                out[-1] += " " + w[9]
+            else:
+                if prev and w[:2] != prev[:2]:
+                    out.append("")
+                out.append(w[9])
+            prev = w[:3]
+        t = BIDI_JUNK.sub("", "\n".join(out))
+    else:
+        with open(base + ".txt", encoding="utf-8") as fh:
+            t = BIDI_JUNK.sub("", fh.read())
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n\s*\n+", "\n\n", t)
+    return t.strip()
+
+
+def read_words(issue, n, kind="", fixes=None):
+    """Word boxes (0..1000 coordinates) for highlighting search hits."""
+    base = os.path.join(WORK, "ocr", issue, "%03d" % n) + kind
+    with open(base + ".size") as fh:
+        W, H = map(int, fh.read().split())
+    words, lines = [], {}
+    for b, pa, ln, _, x, y, w, h, conf, txt in tsv_words(base + ".tsv", fixes):
+        txt = BIDI_JUNK.sub("", txt).strip()
+        if not txt or conf < 20:
+            continue
+        words.append([round(x * 1000 / W), round(y * 1000 / H),
+                      max(1, round(w * 1000 / W)), max(1, round(h * 1000 / H)), txt])
+        # 0..1000 coordinates, words kept in tesseract's (logical) order
+        lines.setdefault((b, pa, ln), []).append(words[-1])
     return words, list(lines.values())
 
 
@@ -788,9 +854,10 @@ def main():
     for done, (num, (raw, pages)) in enumerate(plans.items(), 1):
         issue = "%03d" % num
         texts, words, lines3, line_sets = {}, {}, [], []
+        fixes = load_fixes(issue)
         for p in pages:
-            texts[p["n"]] = read_text(issue, p["n"])
-            w, lines = read_words(issue, p["n"])
+            texts[p["n"]] = read_text(issue, p["n"], fixes.get(p["n"]))
+            w, lines = read_words(issue, p["n"], fixes=fixes.get(p["n"]))
             words[p["n"]] = w
             if p["n"] == 3:
                 lines3 = lines
