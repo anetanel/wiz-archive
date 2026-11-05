@@ -60,6 +60,12 @@ button { font: inherit; cursor: pointer; }
   border: 0; padding: 0 18px; font-weight: 700; background: var(--yellow); color: #1d1733;
   border-start-end-radius: 8px; border-end-end-radius: 8px;
 }
+.search button.qq {
+  border-radius: 0; padding: 0 12px; font-weight: 600; white-space: nowrap;
+  background: #ece8f7; color: #1d1733; border-inline-start: 1px solid #cfc8e6;
+}
+.search button.qq[aria-pressed="true"] { background: var(--pink); color: #fff; }
+.qq-s { display: none; font-size: 20px; line-height: 1; }
 .nav { display: flex; gap: 4px; flex-shrink: 0; }
 .nav a { text-decoration: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; opacity: .85; }
 .nav a:hover { background: rgba(255, 255, 255, .1); opacity: 1; }
@@ -220,6 +226,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
   .nav { margin-inline-start: auto; }
   .nav a { padding: 6px 9px; font-size: 15px; }
   .search input { font-size: 16px; padding: 9px 12px; }
+  .qq-l { display: none; }
+  .qq-s { display: inline; }
   h1 { font-size: 23px; }
   .foot { padding-bottom: 80px; }
 

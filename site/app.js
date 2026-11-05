@@ -600,6 +600,7 @@
     setNav("");
     const q = params.get("q") || "";
     qInput.value = q;
+    syncQuote();
     const y1 = +params.get("from") || 0, y2 = +params.get("to") || 9999, sort = params.get("sort") || "issue";
     const terms = parseQuery(q);
     document.title = q ? `${q} · חיפוש WIZ` : "חיפוש WIZ";
@@ -607,7 +608,7 @@
       app.innerHTML = `<h1>חיפוש</h1><div class="help">
         מקלידים מילה או כמה מילים, והאתר מחפש בכל העמודים של כל הגליונות.<br>
         • כמה מילים: מוצגים רק עמודים שמופיעות בהם <b>כל</b> המילים. למשל <code>סגה מגה דרייב</code><br>
-        • ביטוי מדויק במירכאות: <code>"משחקי תפקידים"</code><br>
+        • ביטוי מדויק (המילים צמודות ובסדר הזה): במירכאות, <code>"משחקי תפקידים"</code>, או בכפתור <b>״ביטוי מדויק״</b> שליד תיבת החיפוש<br>
         • אין צורך בה' הידיעה או באותיות שימוש. החיפוש <code>משחק</code> ימצא גם "המשחקים".<br>
         • המקש <code>/</code> מעביר לתיבת החיפוש. בדף קריאה, החיצים מדפדפים.<br>
         • הטקסט זוהה אוטומטית מהסריקות, ולכן אם מילה לא נמצאה, כדאי לנסות כתיב אחר או שם באנגלית.</div>`;
@@ -724,6 +725,21 @@
     e.preventDefault();
     const v = qInput.value.trim();
     if (v) location.hash = "#/search?q=" + encodeURIComponent(v);
+  };
+  // "ביטוי מדויק": wrap the query in quotes (exact phrase) or take them off again
+  const quoteBtn = document.getElementById("qquote");
+  const isQuoted = v => /^"[^"]+"$/.test(v.trim());
+  function syncQuote() { quoteBtn.setAttribute("aria-pressed", isQuoted(qInput.value)); }
+  qInput.addEventListener("input", syncQuote);
+  quoteBtn.onclick = () => {
+    const v = qInput.value.trim();
+    if (!v || v === '""') {
+      qInput.value = '""'; qInput.focus(); qInput.setSelectionRange(1, 1);
+      return syncQuote();
+    }
+    qInput.value = isQuoted(v) ? v.slice(1, -1) : `"${v.replace(/"/g, "")}"`;
+    syncQuote();
+    location.hash = "#/search?q=" + encodeURIComponent(qInput.value.trim());
   };
   document.addEventListener("keydown", e => {
     if (e.key === "/" && document.activeElement !== qInput && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
