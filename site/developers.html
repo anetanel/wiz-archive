@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WIZ API</title>
+<meta name="description" content="API פתוח לחיפוש ולגישה לכל תוכן ארכיון WIZ: גליונות, תוכני עניינים, טקסט מלא, תמונות ו-PDF.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="WIZ API – ארכיון ירחון המשחקים">
+<meta property="og:description" content="API פתוח לחיפוש בכל 126 גליונות WIZ.">
+<meta property="og:url" content="__SITE_URL__/developers">
+<meta property="og:image" content="__SITE_URL__/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+<style>
+  .doc { max-width: 900px; margin: 0 auto; line-height: 1.7; }
+  .doc h2 { margin-top: 34px; }
+  .doc code, .doc pre { direction: ltr; unicode-bidi: embed; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13.5px; }
+  .doc code { background: var(--card); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); }
+  .doc pre { background: #1d1733; color: #f5f0e3; padding: 14px 16px; border-radius: 8px; overflow-x: auto; text-align: left; white-space: pre; }
+  .ep { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 18px; margin: 14px 0; }
+  .ep .path { direction: ltr; text-align: left; font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: 15px; }
+  .ep .path b { color: var(--pink); margin-right: 8px; }
+  .ep table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 14px; }
+  .ep td { border-top: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+  .ep td:first-child { direction: ltr; text-align: left; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; width: 1%; }
+  .try { display: flex; gap: 8px; margin: 10px 0; direction: ltr; }
+  .try input { flex: 1; font: inherit; font-family: ui-monospace, Menlo, monospace; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  #out { max-height: 420px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="./" class="logo"><img class="logo-img" src="logo-header.png" alt="WIZ" width="78" height="46"><span class="logo-sub">ארכיון</span></a>
+  <nav class="nav" style="margin-inline-start:auto"><a href="./">לאתר</a></nav>
+</header>
+<main class="doc">
+  <h1>WIZ API</h1>
+  <p>ממשק REST פתוח לחיפוש ולגישה לכל תוכן הארכיון: גליונות, תוכני עניינים, טקסט מלא של כל עמוד (OCR), תמונות וקובצי PDF.
+    כל התשובות ב-JSON, בקידוד UTF-8, ומותרות לקריאה מכל אתר (CORS). אין צורך במפתח.</p>
+  <p class="muted">הטקסט זוהה אוטומטית מסריקות ועשוי להכיל שגיאות. כל הכתובות בתשובות הן מוחלטות.</p>
+
+  <h2>נסו</h2>
+  <div class="try"><input id="u" value="/api/search?q=זלדה&limit=3"><button class="btn primary" id="go">GET</button></div>
+  <pre id="out">…</pre>
+
+  <h2>נקודות קצה</h2>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/issues</div>
+    רשימת כל הגליונות: מספר, תאריך, מספר עמודים, כריכה, PDF וקישורים.
+    <table><tr><td>year</td><td>סינון לפי שנה (רשות)</td></tr></table></div>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/issues/{number}</div>
+    גליון אחד: פרטים, תוכן העניינים (<code>toc</code>) ורשימת כל העמודים עם קישורים לתמונות (<code>page_list</code>).</div>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/issues/{number}/pages/{page}</div>
+    עמוד אחד לפי מספר העמוד המודפס: הטקסט המלא (<code>text</code>), הכתבה שהעמוד שייך לה (<code>article</code>),
+    תמונה, תמונה מוקטנת, קישור ל-PDF בעמוד הנכון, וקישורים לעמוד הקודם והבא.</div>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/search?q={query}</div>
+    חיפוש בטקסט המלא של כל העמודים. מחזיר עמודים שמכילים את <b>כל</b> המילים, עם קטע טקסט, הכתבה, תמונה וקישורים.
+    מילה מוצאת גם צורות ארוכות יותר ועם אותיות שימוש (<code>משחק</code> ← "והמשחקים"). ביטוי מדויק: במירכאות.
+    <table>
+      <tr><td>q</td><td>מילות החיפוש (חובה). למשל <code>q="משחקי תפקידים" AD&amp;D</code></td></tr>
+      <tr><td>from, to</td><td>טווח שנים</td></tr>
+      <tr><td>sort</td><td><code>rank</code> (ברירת מחדל, הרלוונטי ביותר קודם) או <code>issue</code> (לפי סדר הגליונות)</td></tr>
+      <tr><td>limit, offset</td><td>עימוד (limit עד 100, ברירת מחדל 20). התשובה כוללת <code>total</code> ו-<code>next</code></td></tr>
+    </table></div>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/articles</div>
+    חיפוש בכתבות מתוכני העניינים (כ-3,000 פריטים).
+    <table>
+      <tr><td>q</td><td>מילים בכותרת או במדור</td></tr>
+      <tr><td>section</td><td>שם מדור מדויק (ראו <code>/api/sections</code>)</td></tr>
+      <tr><td>issue, from, to</td><td>גליון מסוים / טווח שנים</td></tr>
+      <tr><td>limit, offset</td><td>עימוד (limit עד 500, ברירת מחדל 50)</td></tr>
+    </table></div>
+
+  <div class="ep"><div class="path"><b>GET</b>/api/sections</div>
+    כל המדורים בתוכני העניינים, עם מספר הכתבות והגליון הראשון והאחרון שבו הופיעו.</div>
+
+  <h2>דוגמה</h2>
+<pre>const r = await fetch("https://YOUR-SITE.pages.dev/api/search?q=" + encodeURIComponent("סוניק") + "&amp;limit=5");
+const { total, results } = await r.json();
+for (const hit of results)
+  console.log(hit.issue, hit.page, hit.date, hit.article?.title, hit.snippet, hit.url);</pre>
+
+  <h2>שגיאות</h2>
+  <p>שגיאה מוחזרת עם קוד HTTP מתאים (400, 404, 500) וגוף <code>{"error": "..."}</code>.</p>
+</main>
+<script>
+  const u = document.getElementById("u"), out = document.getElementById("out");
+  async function run() {
+    out.textContent = "…";
+    try {
+      const r = await fetch(u.value);
+      out.textContent = r.status + "\n" + JSON.stringify(await r.json(), null, 2);
+    } catch (e) { out.textContent = "הבקשה נכשלה. ה-API פועל רק באתר המפורסם, לא בקובץ מקומי.\n" + e; }
+  }
+  document.getElementById("go").onclick = run;
+  u.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+  document.querySelectorAll(".doc pre").forEach(p => { if (p.id !== "out") p.textContent = p.textContent.replace("https://YOUR-SITE.pages.dev", location.origin.startsWith("http") ? location.origin : "https://YOUR-SITE.pages.dev"); });
+  if (location.protocol.startsWith("http")) run();
+</script>
+</body>
+</html>
