@@ -181,47 +181,6 @@ def forget_page(issue, n):
             os.remove(f)
 
 
-def review_sheet(issue, plan):
-    """review/wiz-NNN.jpg: the bottom strip of every spread as it will be shown,
-    labelled, to spot spreads whose halves are reversed."""
-    from PIL import ImageDraw
-    rows = []
-    by_pdf = {}
-    for p in plan:
-        if p["half"]:
-            by_pdf.setdefault(p["pdf"], []).append(p["n"])
-    for pdf_page, ns in sorted(by_pdf.items()):
-        if len(ns) != 2:
-            continue
-        lo, hi = min(ns), max(ns)
-        strips = []
-        for n in (hi, lo):                       # shown left→right: higher page on the left
-            f = os.path.join(SITE, "img", issue, "%03d.jpg" % n)
-            if not os.path.exists(f):
-                return
-            im = Image.open(f).convert("RGB")
-            w, h = im.size
-            im = im.crop((0, int(h * 0.88), w, h))
-            im = im.resize((520, max(1, round(im.height * 520 / w))), Image.LANCZOS)
-            strips.append(im)
-        row = Image.new("RGB", (60 + 1050, max(s.height for s in strips)), "white")
-        row.paste(strips[0], (60, 0))
-        row.paste(strips[1], (60 + 530, 0))
-        d = ImageDraw.Draw(row)
-        d.text((4, row.height // 2 - 6), "%d|%d" % (hi, lo), fill="black")
-        rows.append(row)
-    if not rows:
-        return
-    H = sum(r.height + 6 for r in rows)
-    sheet = Image.new("RGB", (rows[0].width, H), (230, 230, 230))
-    y = 0
-    for r in rows:
-        sheet.paste(r, (0, y))
-        y += r.height + 6
-    os.makedirs(os.path.join(ROOT, "review"), exist_ok=True)
-    sheet.save(os.path.join(ROOT, "review", "wiz-%s.jpg" % issue), quality=82)
-
-
 def make_brand(issues):
     """Favicons and the social-media preview image (og.jpg) from assets/logo.png
     and the issue covers."""
@@ -799,7 +758,6 @@ def main():
         src = os.path.join(SITE, "img", issue, "003.jpg")
         if os.path.exists(src):
             shutil.copy(src, os.path.join(toc_pages, f"wiz-{issue}-toc.jpg"))
-        review_sheet(issue, pages)
         if done % 10 == 0 or done == len(plans):
             el = time.time() - t0
             eta = el / done * (len(plans) - done)

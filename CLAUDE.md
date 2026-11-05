@@ -29,7 +29,6 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
    - writes `site/data/issues.js` (metadata + TOC), `site/data/text.js` (all text, for
      client-side search), `site/data/text/NNN.js`, `site/data/words/NNN.js` (word boxes
      for highlighting hits on the scan), clickable TOC rows (`toc_links`),
-     `review/wiz-NNN.jpg` (spread-footer sheets for spotting reversed spreads),
      favicons + `og.jpg` from `assets/logo.png`.
 3. `deploy.sh` (wrapper `deploy.command`; project name arg, default `wiz-archive`) – needs
    Node.js >= 22 (brew install/upgrade on macOS; on Linux, if the system node is missing or
