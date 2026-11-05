@@ -207,7 +207,7 @@
   }
 
   // --- reader
-  let readerKeys = null;
+  let readerKeys = null, readerResize = null;
   function viewRead(iss, n, params) {
     setNav("");
     const ns = pageNums(iss);
@@ -284,6 +284,7 @@
       const stage = document.getElementById("stage");
       if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") toggleZoom(); };
       addSwipe(stage);
+      fitPhone();
       app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { panelTab = b.dataset.tab; store.set("tab", panelTab); render(); });
       fillPanel(shown);
       addTocLinks(shown);
@@ -306,6 +307,15 @@
             `<div class="muted" style="font-weight:700;margin:6px 0">עמוד ${m}</div><div class="ocr">${terms.length ? markHtml(t[m] || "", terms) : esc(t[m] || "")}</div>`).join("<hr>");
         }).catch(() => body.innerHTML = `<div class="muted">הטקסט לא נמצא</div>`);
       }
+    }
+
+    // Phones: the whole page fits between the title row and the bottom page bar.
+    function fitPhone() {
+      if (!mobile) return;
+      const stage = document.getElementById("stage"), bar = document.querySelector(".pager");
+      if (!stage || !bar) return;
+      const h = innerHeight - (stage.getBoundingClientRect().top + scrollY) - bar.offsetHeight - 6;
+      stage.querySelectorAll(".pagebox img").forEach(i => { i.style.maxHeight = Math.max(h, 320) + "px"; });
     }
 
     // Clickable rows on the scanned table-of-contents page.
@@ -391,6 +401,7 @@
           (prevHit ? `<a href="#/read/${iss.id}/${prevHit}${qs}">→ קודם</a> ` : "") +
           (nextHit ? `<a href="#/read/${iss.id}/${nextHit}${qs}">הבא ←</a>` : "") +
           ` · <a href="#/search?q=${encodeURIComponent(q)}">לתוצאות</a>`;
+        fitPhone();     // the hits line may have pushed the page down
       }).catch(() => { });
     }
 
@@ -404,6 +415,9 @@
       else if (e.code === "KeyZ" && !mobile && !e.ctrlKey && !e.metaKey && !e.altKey) toggleZoom();
     };
     document.addEventListener("keydown", readerKeys);
+    if (readerResize) removeEventListener("resize", readerResize);
+    readerResize = () => { if (location.hash.startsWith("#/read/")) fitPhone(); };
+    addEventListener("resize", readerResize);
     render();
   }
 

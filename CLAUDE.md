@@ -78,6 +78,8 @@ scanned TOC page, keyboard arrows / `Z` zoom / Esc with a help line on desktop, 
 across page turns (`localStorage` like spread/panel), swipe on phones — swipe right = next page),
 `#/search?q=`, `#/articles`, `#/random`. Must keep working from `file://` (scripts are
 loaded as `.js` globals, no fetch of JSON). Mobile layout under `@media (max-width:700px)`.
+On phones the reader's page is sized by `fitPhone()` to fit between the title row (title and
+PDF button share one row) and the fixed bottom page bar.
 
 ## Conventions
 - Shell scripts must run on macOS (bash 3.2, BSD tools) and Linux; OS-specific code goes
