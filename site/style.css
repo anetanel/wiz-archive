@@ -26,6 +26,8 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* no double-tap-to-zoom (iOS Safari zoomed the site on quick taps on the page buttons); pinch still works */
+html, button, .btn, a, input { touch-action: manipulation; }
 body { background: var(--paper); min-height: 100vh; display: flex; flex-direction: column; }
 a { color: inherit; }
 main { flex: 1; width: 100%; max-width: 1400px; margin: 0 auto; padding: 24px 20px 40px; }
