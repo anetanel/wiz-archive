@@ -218,6 +218,7 @@
     let spread = mobile ? false : store.get("spread", false);
     let panelTab = store.get("tab", "toc");
     let wide = store.get("wide", false);
+    let zoom = !mobile && store.get("zoom", false);     // kept across page turns
     const qs = q ? "?q=" + encodeURIComponent(q) : "";
 
     const pairOf = m => {
@@ -226,6 +227,11 @@
       return iss.pages.filter(p => p[1] === pdf).map(p => p[0]);
     };
     const go = m => { location.hash = `#/read/${iss.id}/${m}${qs}`; };
+    const toggleZoom = () => {
+      zoom = !zoom; store.set("zoom", zoom);
+      const z = document.getElementById("zoomwrap");
+      if (z) z.classList.toggle("zoomed", zoom);
+    };
     const step = dir => {
       const cur = pairOf(n);
       // page numbers can have gaps (a centrefold poster takes two numbers)
@@ -257,9 +263,11 @@
           ${q ? `<span class="hits-nav" id="hitinfo"></span>` : ""}
         </div>
         <div class="reader ${wide ? "wide" : ""}">
-          <div><div class="stage ${spread ? "spread" : ""}" id="stage">
+          <div id="zoomwrap" class="${zoom ? "zoomed" : ""}"><div class="stage ${spread ? "spread" : ""}" id="stage">
             ${ltr.map(m => `<div class="pagebox" data-n="${m}"><img src="${img(iss.id, m)}" alt="עמוד ${m}"></div>`).join("")}
-          </div></div>
+          </div>
+          <div class="khelp"><kbd>←</kbd> עמוד הבא · <kbd>→</kbd> עמוד קודם ·
+            לחיצה על העמוד או <kbd>Z</kbd>: הגדלה / הקטנה · <kbd>Esc</kbd> חזרה לגליון · <kbd>/</kbd> חיפוש</div></div>
           <aside class="panel">
             <div class="tabs">
               <button data-tab="toc" class="${panelTab === "toc" ? "on" : ""}">תוכן העניינים</button>
@@ -274,7 +282,7 @@
       document.getElementById("tspread").onclick = () => { spread = !spread; store.set("spread", spread); render(); };
       document.getElementById("twide").onclick = () => { wide = !wide; store.set("wide", wide); render(); };
       const stage = document.getElementById("stage");
-      if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") e.currentTarget.parentElement.classList.toggle("zoomed"); };
+      if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") toggleZoom(); };
       addSwipe(stage);
       app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { panelTab = b.dataset.tab; store.set("tab", panelTab); render(); });
       fillPanel(shown);
@@ -392,6 +400,8 @@
       if (e.key === "ArrowLeft") { e.preventDefault(); step(1); }
       else if (e.key === "ArrowRight") { e.preventDefault(); step(-1); }
       else if (e.key === "Escape") location.hash = `#/issue/${iss.id}`;
+      // by physical key, so it also works with the Hebrew layout (ז)
+      else if (e.code === "KeyZ" && !mobile && !e.ctrlKey && !e.metaKey && !e.altKey) toggleZoom();
     };
     document.addEventListener("keydown", readerKeys);
     render();

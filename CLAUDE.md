@@ -74,7 +74,8 @@ Test API changes locally against `node:sqlite` with `api/wiz.sql` before deployi
 
 Static SPA, hash routes: `#/` covers by year, `#/issue/NNN`, `#/read/NNN/P?q=` (reader:
 single/double page, search-hit highlight boxes, TOC/OCR side panel, clickable rows on the
-scanned TOC page, keyboard arrows, swipe on phones — swipe right = next page),
+scanned TOC page, keyboard arrows / `Z` zoom / Esc with a help line on desktop, zoom kept
+across page turns (`localStorage` like spread/panel), swipe on phones — swipe right = next page),
 `#/search?q=`, `#/articles`, `#/random`. Must keep working from `file://` (scripts are
 loaded as `.js` globals, no fetch of JSON). Mobile layout under `@media (max-width:700px)`.
 
