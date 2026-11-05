@@ -14,6 +14,7 @@ def parse(path):
         if line.startswith("@swap "): cur.setdefault("swap", []).extend(line[6:].split()); continue
         if line.startswith("@missing "): cur.setdefault("missing", []).extend(line[9:].split()); continue
         if line.startswith("@skip "): cur.setdefault("skip_scans", []).extend(int(x) for x in line[6:].split()); continue
+        if line.startswith("@insert "): cur.setdefault("inserts", []).extend(line[8:].split()); continue
         if line.strip() == "@keep": cur["keep"] = True; continue
         page, sec, title = line.split("|", 2)
         e = {}

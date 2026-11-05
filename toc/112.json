@@ -116,5 +116,11 @@
  ],
  "year": 2000,
  "month": 8,
- "date_estimated": false
+ "date_estimated": false,
+ "inserts": [
+  "7L",
+  "8R",
+  "24L",
+  "25R"
+ ]
 }

@@ -106,7 +106,7 @@ def raw_sizes(raw_dir):
     return sizes
 
 
-def plan_pages(sizes, skip=(), missing=()):
+def plan_pages(sizes, skip=(), missing=(), inserts=()):
     """Map PDF pages to magazine pages.
 
     Scans are: single cover, then two-page spreads (right half = even page,
@@ -115,11 +115,14 @@ def plan_pages(sizes, skip=(), missing=()):
     much taller than the spreads is a centrefold poster scanned sideways: it
     is shown whole and takes up two page numbers (the second one is skipped).
     `skip`: PDF pages to leave out (e.g. a spread scanned twice); `missing`:
-    printed page numbers that are not in the scan, so numbering jumps over them.
+    printed page numbers that are not in the scan, so numbering jumps over them;
+    `inserts`: scan halves ("7L", "8R") of unnumbered leaves bound into the
+    issue (ads) – they are numbered after the back cover so that every printed
+    page keeps its printed number.
     """
     heights = sorted(h for _, h in sizes)
     median_h = heights[len(heights) // 2]
-    pages, n = [], 1
+    pages, n, extra = [], 1, []
 
     def free(m):
         while m in missing:
@@ -132,17 +135,28 @@ def plan_pages(sizes, skip=(), missing=()):
             continue  # credit / insert page that isn't part of the magazine
         n = free(n)
         if w / h > 1.25:
-            pages.append({"n": n, "pdf": idx + 1, "half": "R"})
-            n = free(n + 1)
-            pages.append({"n": n, "pdf": idx + 1, "half": "L"})
-            n += 1
+            for half in ("R", "L"):
+                if f"{idx + 1}{half}" in inserts:
+                    extra.append({"pdf": idx + 1, "half": half, "insert": True})
+                else:
+                    pages.append({"n": n, "pdf": idx + 1, "half": half})
+                    n = free(n + 1)
         elif 0 < idx < last and h > 1.3 * median_h:
             pages.append({"n": n, "pdf": idx + 1, "half": None, "span": 2})
             n += 2
         else:
             pages.append({"n": n, "pdf": idx + 1, "half": None})
             n += 1
-    return pages
+    n = max(p["n"] + p.get("span", 1) for p in pages) if pages else 1
+    for i, p in enumerate(extra):
+        p["n"] = n + i
+    return pages + extra
+
+
+def load_inserts(issue):
+    """Scan halves of unnumbered inserted leaves, from toc/NNN.json:
+    "inserts": ["7L", "8R"] (PDF page + half)."""
+    return {str(x).upper() for x in (load_toc(issue) or {}).get("inserts", [])}
 
 
 def load_numbers(issue, field):
@@ -173,8 +187,8 @@ def apply_swaps(plan, swaps):
         if p["half"]:
             by_pdf.setdefault(p["pdf"], []).append(p)
     for pair in by_pdf.values():
-        if len(pair) != 2:
-            continue
+        if len(pair) != 2 or any(p.get("insert") for p in pair):
+            continue        # a spread shared with an insert keeps its halves as scanned
         lo = min(p["n"] for p in pair)
         want_swapped = lo in swaps
         for p in pair:
@@ -726,7 +740,7 @@ def main():
             raw = extract_raw(pdfs[num], issue)
             sizes = raw_sizes(raw)
         new = apply_swaps(plan_pages(sizes, load_numbers(issue, "skip_scans"),
-                                     load_numbers(issue, "missing")), swaps)
+                                     load_numbers(issue, "missing"), load_inserts(issue)), swaps)
         old = json.load(open(plan_path)) if os.path.exists(plan_path) else []
         key = lambda p: (p["pdf"], p["half"], p.get("span", 1))
         old_by_n = {p["n"]: key(p) for p in old}
@@ -795,6 +809,16 @@ def main():
         gaps = sorted(load_numbers(issue, "missing"))
         if gaps:
             info["missing"] = gaps
+        ins = [p["n"] for p in pages if p.get("insert")]
+        if ins:
+            # where each insert really is: after the printed page before it in the scan
+            after = {}
+            for p in sorted(pages, key=lambda p: (p["pdf"], p["half"] != "R")):
+                if p.get("insert"):
+                    after[p["n"]] = prev
+                else:
+                    prev = p["n"]
+            info["inserts"] = [[n, after[n]] for n in ins]
         d = find_date(texts)
         if d:
             info["year"], info["month"] = d

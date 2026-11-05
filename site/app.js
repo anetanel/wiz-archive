@@ -117,7 +117,18 @@
     return (a > 0 ? "… " : "") + markHtml(s, terms) + (b < rec.raw.length ? " …" : "");
   }
 
+  // inserts: [[page, printed page it follows], …] – unnumbered leaves shown after the back cover
+  const insertAfter = (iss, n) => ((iss.inserts || []).find(x => x[0] === n) || [])[1];
+  const insertsText = iss => {
+    const ins = iss.inserts || [];
+    if (!ins.length) return "";
+    const pages = ins.map(x => x[0]), after = [...new Set(ins.map(x => x[1]))];
+    const p = pages.length > 1 ? `עמודים ${pages[0]}–${pages[pages.length - 1]} הם דפים` : `עמוד ${pages[0]} הוא דף`;
+    return `${p} ללא מספר עמוד שנכרכו בתוך הגליון (אחרי ${after.length > 1 ? "עמודים" : "עמוד"} ${after.join(", ")}), ומוצגים כאן בסוף.`;
+  };
+
   function tocFor(iss, n) {
+    if (insertAfter(iss, n) !== undefined) return null;
     let best = null;
     for (const e of iss.toc || []) if (e.page <= n && (!best || e.page >= best.page)) best = e;
     if (best && best.page_end && n > best.page_end) return null;
@@ -225,6 +236,7 @@
         <div class="muted">${dateHtml(iss)} · ${iss.pages.length} עמודים</div>
         ${iss.notes ? `<div class="note">${esc(iss.notes)}</div>` : ""}
         ${iss.missing ? `<div class="note">${missingText(iss)}.</div>` : ""}
+        ${iss.inserts ? `<div class="note">${insertsText(iss)}</div>` : ""}
         <h2>תוכן העניינים</h2>
         ${toc}
         <h2>כל העמודים</h2>
@@ -249,9 +261,11 @@
     const qs = q ? "?q=" + encodeURIComponent(q) : "";
 
     const pairOf = m => {
-      if (!spread) return [m];
+      // an insert shares its scan with a printed page but is shown on its own
+      const ins = x => insertAfter(iss, x) !== undefined;
+      if (!spread || ins(m)) return [m];
       const pdf = pdfPage(iss, m);
-      return iss.pages.filter(p => p[1] === pdf).map(p => p[0]);
+      return iss.pages.filter(p => p[1] === pdf && !ins(p[0])).map(p => p[0]);
     };
     const go = m => { location.hash = `#/read/${iss.id}/${m}${qs}`; };
     const toggleZoom = () => {
@@ -291,6 +305,7 @@
           ${iss.pdf ? `<a class="btn" href="${esc(pdfHref(iss, n))}" target="_blank">PDF</a>` : ""}
           ${q ? `<span class="hits-nav" id="hitinfo"></span>` : ""}
           ${shown.some(m => (iss.missing || []).some(x => Math.abs(x - m) === 1)) ? `<span class="hits-nav">${missingText(iss)}</span>` : ""}
+          ${shown.some(m => insertAfter(iss, m) !== undefined) ? `<span class="hits-nav">דף ללא מספר עמוד, שנכרך בגליון אחרי עמוד ${insertAfter(iss, shown.find(m => insertAfter(iss, m) !== undefined))}</span>` : ""}
         </div>
         <div class="reader ${wide ? "wide" : ""}">
           <div id="zoomwrap" class="${zoom ? "zoomed" : ""}"><div class="stage ${spread ? "spread" : ""}" id="stage">
