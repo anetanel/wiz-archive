@@ -762,7 +762,8 @@ def main():
     os.makedirs(os.path.join(WORK, "text"), exist_ok=True)
     toc_pages = os.path.join(ROOT, "toc_pages")
     os.makedirs(toc_pages, exist_ok=True)
-    for num, (raw, pages) in plans.items():
+    t0 = time.time()
+    for done, (num, (raw, pages)) in enumerate(plans.items(), 1):
         issue = "%03d" % num
         texts, words, lines3, line_sets = {}, {}, [], []
         for p in pages:
@@ -799,11 +800,16 @@ def main():
         if os.path.exists(src):
             shutil.copy(src, os.path.join(toc_pages, f"wiz-{issue}-toc.jpg"))
         review_sheet(issue, pages)
+        if done % 10 == 0 or done == len(plans):
+            el = time.time() - t0
+            eta = el / done * (len(plans) - done)
+            log(f"  {done}/{len(plans)} issues  (~{eta:.0f} s left)")
 
     issues = [meta[k] for k in sorted(meta)]
     for i in issues:
         if i.get("date_estimated") and not (load_toc(i["id"]) or {}).get("year"):
             i.pop("year", None); i.pop("month", None); i.pop("date_estimated", None)
+    log("Writing issue list, icons and search text...")
     fill_dates(issues)
     with open(meta_path, "w", encoding="utf-8") as fh:
         json.dump(issues, fh, ensure_ascii=False, indent=1)

@@ -1,11 +1,18 @@
 #!/bin/bash
 # Publish the WIZ archive (site + PDFs) to Cloudflare Pages.
 # Usage: deploy.sh [project-name]     (default: wiz-archive)
-# Works on macOS (Homebrew) and Linux (Debian/Ubuntu/Mint: prints the apt line).
+# Works on macOS (Homebrew) and Linux (no sudo: an official Node.js build goes into
+# ./.tools when the system one is missing or too old).
 set -e
 cd "$(dirname "$0")"
 PROJECT="${1:-wiz-archive}"
 WRANGLER_VERSION="4.156.2"
+NODE_MIN=22                 # wrangler's minimum Node.js major version
+NODE_VERSION="24.22.2"      # Linux fallback (LTS), used only when the system Node is older
+
+node_ok() {
+  node -e "process.exit(+process.versions.node.split('.')[0] >= $NODE_MIN ? 0 : 1)" >/dev/null 2>&1
+}
 
 case "$(uname -s)" in
   Darwin)
@@ -13,18 +20,28 @@ case "$(uname -s)" in
       [ -x "$b" ] && eval "$("$b" shellenv)"
     done
     command -v node >/dev/null 2>&1 || { echo "מתקין Node.js..."; brew install node; }
+    node_ok || { echo "מעדכן Node.js..."; brew upgrade node; }
     ;;
   Linux)
-    # no sudo from here: print the apt line for whatever is missing
-    MISSING=()
-    command -v node >/dev/null 2>&1 || MISSING+=(nodejs)
-    command -v npm >/dev/null 2>&1 || MISSING+=(npm)
-    if [ ${#MISSING[@]} -gt 0 ]; then
-      echo "חסרות תוכנות. התקינו אותן עם הפקודה הבאה והריצו שוב:"
-      echo
-      echo "  sudo apt install ${MISSING[*]}"
-      echo
-      read -rp "Enter לסיום"; exit 1
+    # apt's nodejs is often too old for wrangler (Mint 22 / Ubuntu 24.04: v18)
+    if ! node_ok; then
+      case "$(uname -m)" in
+        x86_64) NODE_ARCH=x64 ;;
+        aarch64) NODE_ARCH=arm64 ;;
+        *) echo "מעבד לא נתמך: $(uname -m)"; exit 1 ;;
+      esac
+      NODE_NAME="node-v$NODE_VERSION-linux-$NODE_ARCH"
+      if [ ! -x ".tools/$NODE_NAME/bin/node" ]; then
+        echo "מוריד Node.js $NODE_VERSION לתיקייה .tools (הגרסה במחשב ישנה מדי עבור wrangler)..."
+        mkdir -p .tools
+        curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/$NODE_NAME.tar.xz" -o ".tools/$NODE_NAME.tar.xz"
+        curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt" \
+          | grep " $NODE_NAME.tar.xz\$" | (cd .tools && sha256sum -c --quiet -)
+        tar -xJf ".tools/$NODE_NAME.tar.xz" -C .tools
+        rm ".tools/$NODE_NAME.tar.xz"
+      fi
+      PATH="$PWD/.tools/$NODE_NAME/bin:$PATH"
+      export PATH
     fi
     ;;
   *)

@@ -12,9 +12,10 @@
    - **Linux**: הסקריפט לא מתקין חבילות בעצמו. אם חסר משהו, הוא מדפיס את שורת ההתקנה
      המדויקת. ההתקנה המלאה, פעם אחת:
 
-         sudo apt install tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng poppler-utils python3-venv nodejs npm
+         sudo apt install tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng poppler-utils python3-venv
 
-     (`nodejs` ו-`npm` נחוצים רק לפרסום, `deploy.sh`.)
+     (לפרסום, `deploy.sh`, צריך Node.js 22 ומעלה. אם הגרסה במחשב ישנה יותר או חסרה,
+     הסקריפט מוריד Node.js רשמי לתיקייה `.tools` בלי לגעת במערכת.)
 3. אחר כך רץ ה-OCR. על 126 גליונות (כ-6,000 עמודים) זה ייקח בערך 30 עד 60 דקות,
    תלוי במחשב. אפשר לעצור באמצע (Ctrl+C) ולהריץ שוב. עמודים שכבר עובדו לא יעובדו מחדש.
 4. בסוף האתר נפתח בדפדפן. בפעמים הבאות פשוט פותחים את `site/index.html`.
@@ -56,7 +57,7 @@
 
 1. פותחים חשבון חינמי ב-cloudflare.com.
 2. מריצים את `./deploy.sh` (ב-Mac אפשר גם לגרור ל-Terminal את `deploy.command`).
-   - בפעם הראשונה הסקריפט מתקין wrangler (ב-Mac גם Node.js; ב-Linux צריך `nodejs` ו-`npm` מ-apt), ומדפיס קישור התחברות ל-Cloudflare:
+   - בפעם הראשונה הסקריפט מתקין wrangler (וגם Node.js אם חסר או ישן מדי), ומדפיס קישור התחברות ל-Cloudflare:
      מעתיקים אותו לדפדפן שבו מחוברים ל-Cloudflare ומאשרים.
    - חלופה להתחברות: יוצרים ב-Cloudflare API Token עם הרשאת Cloudflare Pages: Edit,
      ומריצים: `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... ./deploy.sh`

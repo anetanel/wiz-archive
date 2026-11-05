@@ -32,7 +32,9 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
      `review/wiz-NNN.jpg` (spread-footer sheets for spotting reversed spreads),
      favicons + `og.jpg` from `assets/logo.png`.
 3. `deploy.sh` (wrapper `deploy.command`; project name arg, default `wiz-archive`) – needs
-   node/npm (brew on macOS, apt line printed on Linux), installs wrangler
+   Node.js >= 22 (brew install/upgrade on macOS; on Linux, if the system node is missing or
+   older – apt gives v18 on Mint – it downloads a pinned official build, checksum-verified,
+   into `.tools/node-vX-linux-ARCH` and puts it first in PATH), installs wrangler
    **4.156.2** into `.tools/`, runs `deploy.py` (assembles `deploy/` = site + PDFs as
    hard links, rewrites `__SITE_URL__` in HTML for Open Graph, checks the Pages free limits:
    ≤20,000 files, ≤25 MiB/file), logs in with `wrangler login --browser=false`
