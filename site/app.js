@@ -265,7 +265,13 @@
       const ins = x => insertAfter(iss, x) !== undefined;
       if (!spread || ins(m)) return [m];
       const pdf = pdfPage(iss, m);
-      return iss.pages.filter(p => p[1] === pdf && !ins(p[0])).map(p => p[0]);
+      const scan = iss.pages.filter(p => p[1] === pdf);
+      // its scan partner is an insert: pair it with its printed neighbour instead (12+13)
+      if (scan.some(p => ins(p[0]))) {
+        const q = m % 2 === 0 ? m + 1 : m - 1;
+        return ns.includes(q) && !ins(q) ? [m, q] : [m];
+      }
+      return scan.map(p => p[0]);
     };
     const go = m => { location.hash = `#/read/${iss.id}/${m}${qs}`; };
     const toggleZoom = () => {

@@ -26,7 +26,8 @@ The owner works on macOS and on Linux (Mint); the repo (code + local data) lives
      `"skip_scans": [5]` drops PDF pages (issue 88: a spread scanned twice);
      `"inserts": ["7L", "8R"]` are scan halves of unnumbered leaves bound into the issue
      (issue 112: ad leaves after pages 12 and 44) – numbered after the back cover (57–60),
-     shown alone (never paired in two-page view), with a note saying where they belong. When pages only
+     shown alone in two-page view, where the printed pages around them (12+13) are paired
+     with each other instead; a note says where an insert belongs. When pages only
      get new numbers, their cached OCR/images are moved, not redone (`renumber_pages`).
      The site shows "עמודים … חסרים בסריקה" and TOC entries open the article's first scanned
      page (`entryPage()`), or are marked "חסר בסריקה" when none of it was scanned.
