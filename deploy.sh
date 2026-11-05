@@ -123,4 +123,4 @@ echo "=== מעלה (בפעם הראשונה זה ייקח זמן – כמה GB) 
 "$WRANGLER" pages deploy deploy --project-name="$PROJECT" --branch=main --commit-dirty=true
 
 echo "סיום. הכתובת מופיעה למעלה (https://$PROJECT.pages.dev או דומה)."
-[ -t 0 ] && read -rp "Enter לסיום"   # pause only when run from a terminal
+if [ -t 0 ]; then read -rp "Enter לסיום"; fi   # pause only when run from a terminal
