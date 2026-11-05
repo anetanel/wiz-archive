@@ -263,6 +263,17 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: 1px sol
   .sheet-h .btn { padding: 4px 12px; }
   .sheet-body { overflow: auto; overscroll-behavior: contain; padding: 4px 14px 10px; }
   .sheet-body .ptoc a { padding: 11px 4px; font-size: 15px; }
+  .sheet-help { border: 0; border-top: 1px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: 14px; padding: 10px; text-decoration: underline; }
+  /* first-visit gesture help */
+  .phelp { position: fixed; inset: 0; z-index: 45; background: rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .phelp[hidden] { display: none; }
+  .phelp-box { background: var(--card); color: var(--ink); border-radius: 14px; padding: 18px 18px 14px; max-width: 340px; box-shadow: 0 8px 30px rgba(0, 0, 0, .35); }
+  .phelp-box b { font-size: 18px; }
+  .phelp-box ul { list-style: none; margin: 12px 0 14px; padding: 0; }
+  .phelp-box li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 15px; line-height: 1.4; border-bottom: 1px solid var(--line); }
+  .phelp-box li:last-child { border-bottom: 0; }
+  .phelp-box .ico { font-size: 22px; line-height: 1; min-width: 28px; text-align: center; }
+  .phelp-box .btn { width: 100%; padding: 10px; font-size: 16px; }
   #pzoom.on { background: var(--yellow); border-color: var(--yellow); }
   .pager input { width: 52px; font-size: 16px; }
   /* page zoom (addPinchZoom): no browser pinch-zoom over the page; when zoomed, all drags move the page */

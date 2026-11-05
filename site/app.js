@@ -332,7 +332,18 @@
           <div class="sheet-box" role="dialog" aria-label="תוכן העניינים">
             <div class="sheet-h"><b>תוכן העניינים · גליון ${iss.num}</b><button class="btn" id="tocclose" aria-label="סגירה">✕</button></div>
             <div class="sheet-body">${tocList()}</div>
-          </div></div>` : ""}`;
+            <button class="sheet-help" id="helpopen">איך מדפדפים?</button>
+          </div></div>
+        <div class="phelp" id="phelp" hidden><div class="phelp-box" role="dialog" aria-label="איך מדפדפים">
+          <b>איך מדפדפים</b>
+          <ul>
+            <li><span class="ico">👉</span> מחליקים ימינה – העמוד הבא</li>
+            <li><span class="ico">👈</span> מחליקים שמאלה – העמוד הקודם</li>
+            <li><span class="ico">🤏</span> צובטים או מקישים פעמיים – הגדלה. כשהעמוד מוגדל, גוררים באצבע כדי לזוז בו</li>
+            <li><span class="ico">☰</span> תוכן העניינים של הגליון</li>
+          </ul>
+          <button class="btn primary" id="helpok">הבנתי</button>
+        </div></div>` : ""}`;
       document.getElementById("prev").onclick = () => step(-1);
       document.getElementById("next").onclick = () => step(1);
       document.getElementById("pnum").onchange = e => { const v = +e.target.value; if (ns.includes(v)) go(v); };
@@ -341,7 +352,7 @@
       const stage = document.getElementById("stage");
       if (!mobile) stage.onclick = e => { if (e.target.tagName === "IMG") toggleZoom(); };
       const pz = addPinchZoom(stage);
-      if (mobile) addTocSheet();
+      if (mobile) { addTocSheet(); addPhoneHelp(); }
       addSwipe(stage, pz);
       fitPhone();
       app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { panelTab = b.dataset.tab; store.set("tab", panelTab); render(); });
@@ -360,6 +371,15 @@
     }
 
     // Phones: ☰ in the page bar opens the TOC as a bottom sheet.
+    // Phones: gestures are not obvious, so explain them once (and on demand from the ☰ sheet).
+    function addPhoneHelp() {
+      const help = document.getElementById("phelp");
+      const show = () => { document.getElementById("tocsheet").hidden = true; help.hidden = false; };
+      help.onclick = e => { if (e.target === help || e.target.id === "helpok") { help.hidden = true; store.set("phelp", true); } };
+      document.getElementById("helpopen").onclick = show;
+      if (!store.get("phelp", false)) help.hidden = false;
+    }
+
     function addTocSheet() {
       const sheet = document.getElementById("tocsheet");
       const close = () => { sheet.hidden = true; };
@@ -559,8 +579,9 @@
       if (e.key === "ArrowLeft") { e.preventDefault(); step(1); }
       else if (e.key === "ArrowRight") { e.preventDefault(); step(-1); }
       else if (e.key === "Escape") {
-        const sheet = document.getElementById("tocsheet");
-        if (sheet && !sheet.hidden) sheet.hidden = true;
+        const sheet = document.getElementById("tocsheet"), help = document.getElementById("phelp");
+        if (help && !help.hidden) { help.hidden = true; store.set("phelp", true); }
+        else if (sheet && !sheet.hidden) sheet.hidden = true;
         else location.hash = `#/issue/${iss.id}`;
       }
       // by physical key, so it also works with the Hebrew layout (ז)

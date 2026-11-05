@@ -94,6 +94,8 @@ Phone page zoom is `addPinchZoom()` (pinch 1–4×, one-finger pan, double-tap o
 a transform on `#stage` clipped by `#zoomwrap`; browser pinch-zoom is off over the page, and
 swipe page-turns only work at 1×. ☰ in the phone page bar opens the issue's TOC as a bottom sheet
 (`addTocSheet()`, same list as the side panel via `tocList()`); under 380px the bar drops the word "עמוד".
+A gesture help card (`addPhoneHelp()`) shows on the first phone visit to the reader
+(`localStorage` `wiz:phelp`) and again from "איך מדפדפים?" at the bottom of the ☰ sheet.
 
 ## Conventions
 - Shell scripts must run on macOS (bash 3.2, BSD tools) and Linux; OS-specific code goes
