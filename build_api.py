@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Build the SQL file for the Cloudflare D1 database behind the REST API
-(api/wiz.sql). Run after build.py. deploy.command imports it into D1.
+(api/wiz.sql). Run after build.py. deploy.sh imports it into D1.
 
 The search index stores, for every page, its words plus each word with
 Hebrew prefix letters (ו ה ב כ ל מ ש) stripped, so a search for "משחק"

@@ -5,12 +5,16 @@ built from scanned PDFs. Hebrew, RTL. Runs locally (open `site/index.html`, no s
 and is published to **Cloudflare Pages** (static site + PDFs) with a public **REST API**
 (Pages Function + **D1** SQLite).
 
-The owner works on macOS; the repo (code + local data) lives at `~/repos/wiz-archive`.
+The owner works on macOS and on Linux (Mint); the repo (code + local data) lives at
+`~/repos/wiz-archive` on both (git, branch `main`; scans and generated data stay local).
 
 ## Pipeline
 
-1. `run.command` – installs Homebrew deps (tesseract + `tesseract-lang`, poppler, python),
-   makes `.venv` with Pillow, runs `build.py`, opens the site.
+1. `run.sh` (`run.command` is a double-click wrapper for macOS) – on macOS installs Homebrew
+   deps (tesseract + `tesseract-lang`, poppler, python); on Linux only checks them (tesseract
+   with `heb`/`eng`, poppler-utils, python3-venv) and prints the `sudo apt install ...` line
+   for what is missing. Makes `.venv` with Pillow, runs `build.py --jobs <cores>`, opens the
+   site (`open` / `xdg-open`).
 2. `build.py` – for every `pdfs/wiz-NNN.pdf`:
    - plans magazine pages from the scan sizes (`pdfimages -list`): page 1 single cover,
      then two-page spreads (right half = lower/even page, Hebrew order), single back cover;
@@ -27,7 +31,8 @@ The owner works on macOS; the repo (code + local data) lives at `~/repos/wiz-arc
      for highlighting hits on the scan), clickable TOC rows (`toc_links`),
      `review/wiz-NNN.jpg` (spread-footer sheets for spotting reversed spreads),
      favicons + `og.jpg` from `assets/logo.png`.
-3. `deploy.command` (project name arg, default `wiz-archive`) – installs wrangler
+3. `deploy.sh` (wrapper `deploy.command`; project name arg, default `wiz-archive`) – needs
+   node/npm (brew on macOS, apt line printed on Linux), installs wrangler
    **4.156.2** into `.tools/`, runs `deploy.py` (assembles `deploy/` = site + PDFs as
    hard links, rewrites `__SITE_URL__` in HTML for Open Graph, checks the Pages free limits:
    ≤20,000 files, ≤25 MiB/file), logs in with `wrangler login --browser=false`
@@ -59,7 +64,7 @@ Free plan: **100,000 rows written per day** (resets 00:00 UTC). A full import is
 `api_sync.py` compares them with `api/imported/` (what the live DB holds) and produces
 `api/update.sql` touching only changed issues (contentless FTS5 rows are removed with the
 `'delete'` command, which needs the old tokens – that is why `api/imported/` stores them).
-`deploy.command` asks before any full import. **Never delete `api/imported/` or
+`deploy.sh` asks before any full import. **Never delete `api/imported/` or
 `api/imported-schema.sha256`** – without them the next deploy needs a full import.
 Changing the schema (or FTS options) forces a full import: plan it for a fresh day.
 Test API changes locally against `node:sqlite` with `api/wiz.sql` before deploying.
@@ -73,6 +78,8 @@ scanned TOC page, keyboard arrows, swipe on phones — swipe right = next page),
 loaded as `.js` globals, no fetch of JSON). Mobile layout under `@media (max-width:700px)`.
 
 ## Conventions
+- Shell scripts must run on macOS (bash 3.2, BSD tools) and Linux; OS-specific code goes
+  in the `case "$(uname -s)"` blocks of `run.sh` / `deploy.sh`.
 - UI text is Hebrew; code/comments English.
 - Don't commit scans, page images or generated data (see `.gitignore`).
 - Verify UI changes with Playwright screenshots (desktop + `devices['iPhone 13']`).

@@ -36,7 +36,7 @@ def link(src, dst):
 def main():
     issues_path = os.path.join(ROOT, "work", "issues.json")
     if not os.path.exists(issues_path) or not os.path.exists(os.path.join(SITE, "index.html")):
-        sys.exit("Build the site first (run.command).")
+        sys.exit("Build the site first (run.sh).")
     with open(issues_path, encoding="utf-8") as fh:
         issues = json.load(fh)
 
