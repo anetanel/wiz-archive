@@ -98,6 +98,31 @@ const tocObj = (e, base) => ({
   url: `${base}/#/read/${pad(e.issue)}/${e.page}`,
 });
 
+// --- table of contents ------------------------------------------------------
+// The TOC (and issue dates) come from the site's own static data/issues.js, not
+// from D1: the free plan allows 5M rows read a day, and a text filter over the toc
+// table reads all ~3,000 rows each time. Loaded once per isolate.
+let TOC = null;
+function tocData(env, base) {
+  if (!TOC) TOC = (async () => {
+    const r = await env.ASSETS.fetch(new Request(`${base}/data/issues.js`));
+    if (!r.ok) throw new Error(`data/issues.js: HTTP ${r.status}`);
+    const s = (await r.text()).trim();
+    const all = [], byIssue = new Map();
+    for (const i of JSON.parse(s.slice(s.indexOf("=") + 1, s.lastIndexOf("]") + 1))) {
+      const list = (i.toc || []).map(e => ({
+        issue: i.num, page: e.page, page_end: e.page_end || null, section: e.section || null, title: e.title,
+        year: i.year || null, month: i.month || null,
+        norm: norm([e.section, e.title].filter(Boolean).join(" ")),
+      })).sort((a, b) => a.page - b.page);
+      byIssue.set(i.num, list);
+      all.push(...list);
+    }
+    return { all, byIssue };
+  })().catch(e => { TOC = null; throw e; });
+  return TOC;
+}
+
 // --- endpoints --------------------------------------------------------------
 async function listIssues(db, url, base) {
   const y = url.searchParams.get("year");
@@ -107,26 +132,24 @@ async function listIssues(db, url, base) {
   return json({ count: rows.length, issues: rows.map(r => issueObj(r, base)) });
 }
 
-async function getIssue(db, num, base) {
-  const [iss, toc, pages] = await db.batch([
+async function getIssue(db, toc, num, base) {
+  const [iss, pages] = await db.batch([
     db.prepare("SELECT * FROM issues WHERE num = ?").bind(num),
-    db.prepare("SELECT * FROM toc WHERE issue = ? ORDER BY page, rowid").bind(num),
     db.prepare("SELECT page, pdf_page FROM pages WHERE issue = ? ORDER BY page").bind(num),
   ]);
   const r = iss.results[0];
   if (!r) return fail(404, `Issue ${num} not found`);
   return json({
     ...issueObj(r, base),
-    toc: toc.results.map(e => tocObj(e, base)),
+    toc: (toc.byIssue.get(num) || []).map(e => tocObj(e, base)),
     page_list: pages.results.map(p => ({ page: p.page, ...pageLinks(num, p.page, p.pdf_page, r.has_pdf, base) })),
   });
 }
 
-async function getPage(db, num, page, base) {
-  const [pg, iss, toc, nb] = await db.batch([
+async function getPage(db, toc, num, page, base) {
+  const [pg, iss, nb] = await db.batch([
     db.prepare("SELECT * FROM pages WHERE issue = ? AND page = ?").bind(num, page),
     db.prepare("SELECT * FROM issues WHERE num = ?").bind(num),
-    db.prepare("SELECT * FROM toc WHERE issue = ? ORDER BY page").bind(num),
     db.prepare("SELECT (SELECT max(page) FROM pages WHERE issue = ?1 AND page < ?2) AS prev, " +
       "(SELECT min(page) FROM pages WHERE issue = ?1 AND page > ?2) AS next").bind(num, page),
   ]);
@@ -135,7 +158,7 @@ async function getPage(db, num, page, base) {
   if (!p || !r) return fail(404, `Issue ${num} page ${page} not found`);
   return json({
     issue: num, page, date: r.year ? `${MONTHS[r.month - 1]} ${r.year}` : null,
-    article: articleFor(toc.results, page),
+    article: articleFor(toc.byIssue.get(num) || [], page),
     ...pageLinks(num, page, p.pdf_page, r.has_pdf, base),
     prev: prev ? `${base}/api/issues/${num}/pages/${prev}` : null,
     next: next ? `${base}/api/issues/${num}/pages/${next}` : null,
@@ -143,38 +166,41 @@ async function getPage(db, num, page, base) {
   });
 }
 
-async function articles(db, url, base) {
+function articles(toc, url, base) {
   const sp = url.searchParams;
   const limit = int(sp.get("limit"), 50, 1, 500), offset = int(sp.get("offset"), 0, 0, 1e6);
-  const where = [], args = [];
-  for (const t of tokens(sp.get("q") || "")) { where.push("t.norm LIKE ?"); args.push(`%${t}%`); }
-  if (sp.get("section")) { where.push("t.section = ?"); args.push(sp.get("section")); }
-  if (sp.get("issue")) { where.push("t.issue = ?"); args.push(int(sp.get("issue"), 0, 0, 1e4)); }
-  if (sp.get("from")) { where.push("i.year >= ?"); args.push(int(sp.get("from"), 0, 0, 9999)); }
-  if (sp.get("to")) { where.push("i.year <= ?"); args.push(int(sp.get("to"), 9999, 0, 9999)); }
-  const w = where.length ? "WHERE " + where.join(" AND ") : "";
-  const from = "FROM toc t JOIN issues i ON i.num = t.issue";
-  const [cnt, rows] = await db.batch([
-    db.prepare(`SELECT count(*) AS n ${from} ${w}`).bind(...args),
-    db.prepare(`SELECT t.*, i.year, i.month ${from} ${w} ORDER BY t.issue, t.page LIMIT ? OFFSET ?`).bind(...args, limit, offset),
-  ]);
+  const terms = tokens(sp.get("q") || ""), section = sp.get("section");
+  const issue = sp.get("issue") ? int(sp.get("issue"), 0, 0, 1e4) : null;
+  const y1 = sp.get("from") ? int(sp.get("from"), 0, 0, 9999) : null;
+  const y2 = sp.get("to") ? int(sp.get("to"), 9999, 0, 9999) : null;
+  const hits = toc.all.filter(e => terms.every(t => e.norm.includes(t)) &&
+    (!section || e.section === section) && (issue === null || e.issue === issue) &&
+    (y1 === null || (e.year !== null && e.year >= y1)) && (y2 === null || (e.year !== null && e.year <= y2)));
   return json({
-    total: cnt.results[0].n, limit, offset,
-    articles: rows.results.map(e => ({
+    total: hits.length, limit, offset,
+    articles: hits.slice(offset, offset + limit).map(e => ({
       issue: e.issue, date: e.year ? `${MONTHS[e.month - 1]} ${e.year}` : null,
       ...tocObj(e, base), api: `${base}/api/issues/${e.issue}/pages/${e.page}`,
     })),
   });
 }
 
-async function sections(db) {
-  const rows = (await db.prepare(
-    "SELECT section, count(*) AS articles, min(issue) AS first_issue, max(issue) AS last_issue " +
-    "FROM toc WHERE section IS NOT NULL GROUP BY section ORDER BY articles DESC").all()).results;
+function sections(toc) {
+  const by = new Map();
+  for (const e of toc.all) {
+    if (!e.section) continue;
+    const s = by.get(e.section) || { section: e.section, articles: 0, first_issue: e.issue, last_issue: e.issue };
+    s.articles++;
+    s.first_issue = Math.min(s.first_issue, e.issue);
+    s.last_issue = Math.max(s.last_issue, e.issue);
+    by.set(e.section, s);
+  }
+  const rows = [...by.values()].sort((a, b) =>
+    b.articles - a.articles || (a.section < b.section ? -1 : a.section > b.section ? 1 : 0));
   return json({ count: rows.length, sections: rows });
 }
 
-async function search(db, url, base) {
+async function search(db, toc, url, base) {
   const sp = url.searchParams;
   const q = (sp.get("q") || "").trim();
   const { terms, phrases } = parseQuery(q);
@@ -208,9 +234,8 @@ async function search(db, url, base) {
   const qs = ids.map(() => "?").join(",");
   const nums = [...new Set(ids.map(id => Math.floor(id / 1000)))];
   const qn = nums.map(() => "?").join(",");
-  const [pages, tocs, iss] = await db.batch([
+  const [pages, iss] = await db.batch([
     db.prepare(`SELECT id, issue, page, pdf_page, text FROM pages WHERE id IN (${qs})`).bind(...ids),
-    db.prepare(`SELECT * FROM toc WHERE issue IN (${qn}) ORDER BY page`).bind(...nums),
     db.prepare(`SELECT * FROM issues WHERE num IN (${qn})`).bind(...nums),
   ]);
   const byId = Object.fromEntries(pages.results.map(p => [p.id, p]));
@@ -224,7 +249,7 @@ async function search(db, url, base) {
       return {
         issue: p.issue, page: p.page,
         date: r.year ? `${MONTHS[r.month - 1]} ${r.year}` : null,
-        article: articleFor(tocs.results.filter(e => e.issue === p.issue), p.page),
+        article: articleFor(toc.byIssue.get(p.issue) || [], p.page),
         snippet: snippet(p.text, show),
         ...pageLinks(p.issue, p.page, p.pdf_page, r.has_pdf, base),
       };
@@ -264,11 +289,12 @@ export async function onRequest({ request, env, params }) {
     const [a, b, c, d, ...rest] = parts;
     if (rest.length) return fail(404, "Unknown endpoint");
     if (a === "issues" && !b) return listIssues(env.DB, url, base);
-    if (a === "issues" && /^\d+$/.test(b) && !c) return getIssue(env.DB, +b, base);
-    if (a === "issues" && /^\d+$/.test(b) && c === "pages" && /^\d+$/.test(d || "")) return getPage(env.DB, +b, +d, base);
-    if (a === "search" && !b) return search(env.DB, url, base);
-    if (a === "articles" && !b) return articles(env.DB, url, base);
-    if (a === "sections" && !b) return sections(env.DB);
+    const toc = () => tocData(env, base);
+    if (a === "issues" && /^\d+$/.test(b) && !c) return getIssue(env.DB, await toc(), +b, base);
+    if (a === "issues" && /^\d+$/.test(b) && c === "pages" && /^\d+$/.test(d || "")) return getPage(env.DB, await toc(), +b, +d, base);
+    if (a === "search" && !b) return search(env.DB, await toc(), url, base);
+    if (a === "articles" && !b) return articles(await toc(), url, base);
+    if (a === "sections" && !b) return sections(await toc());
     return fail(404, "Unknown endpoint");
   } catch (e) {
     return fail(500, String(e && e.message || e));

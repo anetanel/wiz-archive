@@ -89,6 +89,11 @@ Free plan: **100,000 rows written per day** (resets 00:00 UTC). A full import is
 `deploy.sh` asks before any full import. **Never delete `api/imported/` or
 `api/imported-schema.sha256`** – without them the next deploy needs a full import.
 Changing the schema (or FTS options) forces a full import: plan it for a fresh day.
+Reads are limited too: **5,000,000 rows read per day** (API calls then fail until 00:00 UTC).
+`wrangler d1 insights wiz-archive-db --sort-by reads` shows which queries cost what. A filter
+over a whole table reads every row, so the TOC (articles, sections, the `article` of a page)
+is served from the deployed static `data/issues.js` (`tocData()`, loaded once per isolate via
+`env.ASSETS`), not from the `toc` table – keep new endpoints on indexed lookups or FTS.
 Test API changes locally against `node:sqlite` with `api/wiz.sql` before deploying.
 
 ## Frontend (`site/`)
